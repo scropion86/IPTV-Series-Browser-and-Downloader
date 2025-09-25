@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  iptv-browser:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: iptv-browser:latest
+    container_name: iptv-browser
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount downloads directory with proper permissions
+      - ./downloads:/app/downloads:rw
+      # Mount config file as read-only
+      - ./config.py:/app/config.py:ro
+      # Mount cache files for persistence
+      - ./cached_series_data.json:/app/cached_series_data.json:rw
+      - ./cached_movies_data.json:/app/cached_movies_data.json:rw
+      # Mount logs directory (optional)
+      - ./logs:/app/logs:rw
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.2'
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Network configuration
+    networks:
+      - iptv-network
+
+networks:
+  iptv-network:
+    driver: bridge

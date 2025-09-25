@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  iptv-browser:
+    build: .
+    container_name: iptv-browser
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount downloads directory
+      - ./downloads:/app/downloads
+      # Mount config file (create config.py first)
+      - ./config.py:/app/config.py:ro
+      # Mount cache files (optional, for persistence)
+      - ./cached_series_data.json:/app/cached_series_data.json
+      - ./cached_movies_data.json:/app/cached_movies_data.json
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      # Optional: Use environment variables instead of config file
+      # Uncomment and modify these lines to use environment variables
+      # - BASE_URL=http://your-provider.com:8080/
+      # - USERNAME=your_username
+      # - PASSWORD=your_password
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
