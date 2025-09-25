@@ -61,11 +61,14 @@
                 </div>
                 
                 <div class="download-section">
-                    <h3>Download Movie</h3>
-                    <form action="{{ url_for('download_movie') }}" method="POST" class="download-form">
-                        <input type="hidden" name="vod_id" value="{{ vod_id }}">
-                        <button type="submit" class="button primary">Download Movie</button>
-                    </form>
+                    <h3>Watch or Download Movie</h3>
+                    <div class="action-buttons">
+                        <button onclick="watchMovie()" class="button primary watch-btn">🎬 Watch Now</button>
+                        <form action="{{ url_for('download_movie') }}" method="POST" class="download-form" style="display: inline;">
+                            <input type="hidden" name="vod_id" value="{{ vod_id }}">
+                            <button type="submit" class="button download-btn">📥 Download Movie</button>
+                        </form>
+                    </div>
                     
                     <div id="download-status" class="download-status" style="display: none;">
                         <h3>Download Progress</h3>
@@ -207,6 +210,27 @@
             this.querySelectorAll('input, button').forEach(el => el.disabled = false);
         }
     });
+    
+    // Watch movie function
+    function watchMovie() {
+        const vod_id = '{{ vod_id }}';
+        const referrer = '{{ referrer }}';
+        const searchQuery = '{{ search_query }}';
+        const contentType = '{{ content_type }}';
+        
+        let watchUrl = `/watch/movie/${vod_id}`;
+        const params = new URLSearchParams();
+        
+        if (referrer) params.append('referrer', referrer);
+        if (searchQuery) params.append('search_query', searchQuery);
+        if (contentType) params.append('content_type', contentType);
+        
+        if (params.toString()) {
+            watchUrl += '?' + params.toString();
+        }
+        
+        window.open(watchUrl, '_blank');
+    }
     
     // Smart back button function
     function goBack() {

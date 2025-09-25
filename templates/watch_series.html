@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <a href="#" onclick="goBack()" class="button">← Back</a>
+    <h1 class="watch-title">{{ series.info.name }}</h1>
+    <h2 class="episode-title">{{ episode.title }}</h2>
+    
+    <div class="video-container">
+        <video
+            id="seriesPlayer"
+            class="video-js vjs-default-skin"
+            controls
+            preload="auto"
+            data-setup='{"responsive": true, "fluid": true}'>
+            <source src="{{ url_for('stream_proxy') }}?url={{ stream_url | urlencode }}" type="video/mp4">
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a web browser that
+                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>.
+            </p>
+        </video>
+    </div>
+    
+    <div class="episode-navigation">
+        <button onclick="previousEpisode()" class="button" id="prevBtn">⏮️ Previous</button>
+        <div class="episode-info">
+            <span class="season-info">Season {{ current_season }}</span>
+            <span class="episode-number">Episode {{ episode.episode_num if episode.episode_num else 'N/A' }}</span>
+        </div>
+        <button onclick="nextEpisode()" class="button" id="nextBtn">Next ⏭️</button>
+    </div>
+    
+    <div class="video-actions">
+        <button onclick="toggleFullscreen()" class="button">📺 Fullscreen</button>
+        <button onclick="downloadEpisode()" class="button primary">📥 Download Instead</button>
+        <button onclick="togglePictureInPicture()" class="button">🖼️ Picture-in-Picture</button>
+        <button onclick="showEpisodeList()" class="button">📋 Episodes</button>
+    </div>
+    
+    <!-- Episode List Modal -->
+    <div id="episodeModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Season {{ current_season }} Episodes</h3>
+                <span class="close" onclick="hideEpisodeList()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="episode-grid">
+                    {% for ep in episode_list %}
+                    <div class="episode-item {% if ep.id|string == episode.id|string %}current{% endif %}" 
+                         onclick="watchEpisode('{{ ep.id }}')">
+                        <div class="episode-thumb">
+                            <span class="episode-num">{{ ep.episode_num if ep.episode_num else loop.index }}</span>
+                        </div>
+                        <div class="episode-details">
+                            <h4>{{ ep.title }}</h4>
+                            {% if ep.info and ep.info.duration_secs %}
+                            <span class="episode-duration">{{ (ep.info.duration_secs // 60) }}min</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="series-details">
+        {% if series.info and series.info.plot %}
+        <div class="series-plot">
+            <h3>Series Plot</h3>
+            <p>{{ series.info.plot }}</p>
+        </div>
+        {% endif %}
+        
+        {% if episode.info and episode.info.plot %}
+        <div class="episode-plot">
+            <h3>Episode Plot</h3>
+            <p>{{ episode.info.plot }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Video.js CSS and JS -->
+<link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
+<script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+
+<script>
+// Episode data for navigation
+const episodeList = {{ episode_list | tojsonfilter }};
+const currentEpisodeId = '{{ episode_id }}';
+const seriesId = '{{ series_id }}';
+let currentIndex = episodeList.findIndex(ep => ep.id.toString() === currentEpisodeId.toString());
+
+// Fallback if episode not found
+if (currentIndex === -1) {
+    currentIndex = 0;
+    console.warn('Current episode not found in episode list, defaulting to first episode');
+}
+
+// Initialize Video.js player
+var player = videojs('seriesPlayer', {
+    controls: true,
+    responsive: true,
+    fluid: true,
+    playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2]
+});
+
+// Player event handlers
+player.ready(function() {
+    console.log('Series player is ready');
+    updateNavigationButtons();
+});
+
+player.on('error', function() {
+    console.error('Video playback error');
+    alert('Error loading video. Please try downloading instead.');
+});
+
+// Auto-play next episode when current ends
+player.on('ended', function() {
+    if (currentIndex < episodeList.length - 1) {
+        setTimeout(() => {
+            if (confirm('Play next episode?')) {
+                nextEpisode();
+            }
+        }, 2000);
+    }
+});
+
+// Navigation functions
+function updateNavigationButtons() {
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    prevBtn.disabled = currentIndex <= 0;
+    nextBtn.disabled = currentIndex >= episodeList.length - 1;
+    
+    if (prevBtn.disabled) {
+        prevBtn.style.opacity = '0.5';
+        prevBtn.style.cursor = 'not-allowed';
+    } else {
+        prevBtn.style.opacity = '1';
+        prevBtn.style.cursor = 'pointer';
+    }
+    
+    if (nextBtn.disabled) {
+        nextBtn.style.opacity = '0.5';
+        nextBtn.style.cursor = 'not-allowed';
+    } else {
+        nextBtn.style.opacity = '1';
+        nextBtn.style.cursor = 'pointer';
+    }
+}
+
+function previousEpisode() {
+    if (currentIndex > 0) {
+        const prevEpisode = episodeList[currentIndex - 1];
+        watchEpisode(prevEpisode.id);
+    }
+}
+
+function nextEpisode() {
+    if (currentIndex < episodeList.length - 1) {
+        const nextEpisode = episodeList[currentIndex + 1];
+        watchEpisode(nextEpisode.id);
+    }
+}
+
+function watchEpisode(episodeId) {
+    const params = new URLSearchParams(window.location.search);
+    let url = `/watch/series/${seriesId}/${episodeId}`;
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    window.location.href = url;
+}
+
+// Control functions
+function toggleFullscreen() {
+    if (player.isFullscreen()) {
+        player.exitFullscreen();
+    } else {
+        player.requestFullscreen();
+    }
+}
+
+function togglePictureInPicture() {
+    try {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+        } else {
+            const video = player.el().querySelector('video');
+            if (video && video.requestPictureInPicture) {
+                video.requestPictureInPicture();
+            } else {
+                alert('Picture-in-Picture not supported in this browser');
+            }
+        }
+    } catch (error) {
+        console.error('Picture-in-Picture error:', error);
+        alert('Picture-in-Picture not available');
+    }
+}
+
+function showEpisodeList() {
+    document.getElementById('episodeModal').style.display = 'block';
+}
+
+function hideEpisodeList() {
+    document.getElementById('episodeModal').style.display = 'none';
+}
+
+function downloadEpisode() {
+    // Create form and submit to download route
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("download") }}';
+    
+    const seriesIdInput = document.createElement('input');
+    seriesIdInput.type = 'hidden';
+    seriesIdInput.name = 'series_id';
+    seriesIdInput.value = '{{ series_id }}';
+    form.appendChild(seriesIdInput);
+    
+    const referrerInput = document.createElement('input');
+    referrerInput.type = 'hidden';
+    referrerInput.name = 'referrer';
+    referrerInput.value = '{{ referrer }}';
+    form.appendChild(referrerInput);
+    
+    const searchQueryInput = document.createElement('input');
+    searchQueryInput.type = 'hidden';
+    searchQueryInput.name = 'search_query';
+    searchQueryInput.value = '{{ search_query }}';
+    form.appendChild(searchQueryInput);
+    
+    const contentTypeInput = document.createElement('input');
+    contentTypeInput.type = 'hidden';
+    contentTypeInput.name = 'content_type';
+    contentTypeInput.value = '{{ content_type }}';
+    form.appendChild(contentTypeInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Smart back button function
+function goBack() {
+    const referrer = '{{ referrer }}';
+    const searchQuery = '{{ search_query }}';
+    const contentType = '{{ content_type }}';
+    
+    switch(referrer) {
+        case 'search':
+            let searchUrl = '{{ url_for("search") }}';
+            const params = new URLSearchParams();
+            if (searchQuery) {
+                params.append('query', searchQuery);
+            }
+            if (contentType && contentType !== 'all') {
+                params.append('content_type', contentType);
+            }
+            if (params.toString()) {
+                searchUrl += '?' + params.toString();
+            }
+            window.location.href = searchUrl;
+            break;
+        case 'category':
+            {% if series.info and series.info.category_id %}
+            window.location.href = '{{ url_for("series", category_id=series.info.category_id) }}';
+            {% else %}
+            window.location.href = '{{ url_for("series_index") }}';
+            {% endif %}
+            break;
+        default:
+            if (document.referrer && document.referrer.includes(window.location.origin)) {
+                window.history.back();
+            } else {
+                window.location.href = '{{ url_for("main") }}';
+            }
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName.toLowerCase() !== 'input') {
+        switch(e.key) {
+            case ' ':
+                e.preventDefault();
+                if (player.paused()) {
+                    player.play();
+                } else {
+                    player.pause();
+                }
+                break;
+            case 'f':
+            case 'F':
+                e.preventDefault();
+                toggleFullscreen();
+                break;
+            case 'p':
+            case 'P':
+                e.preventDefault();
+                togglePictureInPicture();
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                previousEpisode();
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                nextEpisode();
+                break;
+            case 'Escape':
+                hideEpisodeList();
+                break;
+        }
+    }
+});
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('episodeModal');
+    if (event.target === modal) {
+        hideEpisodeList();
+    }
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (player) {
+        player.dispose();
+    }
+});
+</script>
+{% endblock %}

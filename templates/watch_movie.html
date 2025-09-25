@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <a href="#" onclick="goBack()" class="button">← Back</a>
+    <h1 class="watch-title">{{ movie.info.name }}</h1>
+    
+    <div class="video-container">
+        <video
+            id="moviePlayer"
+            class="video-js vjs-default-skin"
+            controls
+            preload="auto"
+            data-setup='{"responsive": true, "fluid": true}'
+            poster="{{ movie.info.movie_image if movie.info and movie.info.movie_image else '' }}">
+            <source src="{{ url_for('stream_proxy') }}?url={{ stream_url | urlencode }}" type="video/mp4">
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a web browser that
+                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>.
+            </p>
+        </video>
+    </div>
+    
+    <div class="video-actions">
+        <button onclick="toggleFullscreen()" class="button">📺 Fullscreen</button>
+        <button onclick="downloadMovie()" class="button primary">📥 Download Instead</button>
+        <button onclick="togglePictureInPicture()" class="button">🖼️ Picture-in-Picture</button>
+    </div>
+    
+    <div class="movie-details">
+        <div class="movie-meta">
+            {% if movie.info and movie.info.genre %}
+            <span class="meta-item"><strong>Genre:</strong> {{ movie.info.genre }}</span>
+            {% endif %}
+            {% if movie.info and movie.info.rating %}
+            <span class="meta-item"><strong>Rating:</strong> {{ movie.info.rating }}</span>
+            {% endif %}
+            {% if movie.info and movie.info.releasedate %}
+            <span class="meta-item"><strong>Release:</strong> {{ movie.info.releasedate }}</span>
+            {% endif %}
+            {% if movie.info and movie.info.duration %}
+            <span class="meta-item"><strong>Duration:</strong> {{ movie.info.duration }}</span>
+            {% endif %}
+        </div>
+        
+        {% if movie.info and movie.info.plot %}
+        <div class="movie-plot">
+            <h3>Plot</h3>
+            <p>{{ movie.info.plot }}</p>
+        </div>
+        {% endif %}
+        
+        {% if movie.info and movie.info.cast %}
+        <div class="movie-cast">
+            <h3>Cast</h3>
+            <p>{{ movie.info.cast }}</p>
+        </div>
+        {% endif %}
+        
+        {% if movie.info and movie.info.director %}
+        <div class="movie-director">
+            <h3>Director</h3>
+            <p>{{ movie.info.director }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Video.js CSS and JS -->
+<link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
+<script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+
+<script>
+// Initialize Video.js player
+var player = videojs('moviePlayer', {
+    controls: true,
+    responsive: true,
+    fluid: true,
+    playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2]
+});
+
+// Player event handlers
+player.ready(function() {
+    console.log('Movie player is ready');
+});
+
+player.on('error', function() {
+    console.error('Video playback error');
+    alert('Error loading video. Please try downloading instead.');
+});
+
+// Control functions
+function toggleFullscreen() {
+    if (player.isFullscreen()) {
+        player.exitFullscreen();
+    } else {
+        player.requestFullscreen();
+    }
+}
+
+function togglePictureInPicture() {
+    try {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+        } else {
+            const video = player.el().querySelector('video');
+            if (video && video.requestPictureInPicture) {
+                video.requestPictureInPicture();
+            } else {
+                alert('Picture-in-Picture not supported in this browser');
+            }
+        }
+    } catch (error) {
+        console.error('Picture-in-Picture error:', error);
+        alert('Picture-in-Picture not available');
+    }
+}
+
+function downloadMovie() {
+    // Create form and submit to download route
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("movie_download") }}';
+    
+    const vodIdInput = document.createElement('input');
+    vodIdInput.type = 'hidden';
+    vodIdInput.name = 'vod_id';
+    vodIdInput.value = '{{ vod_id }}';
+    form.appendChild(vodIdInput);
+    
+    const referrerInput = document.createElement('input');
+    referrerInput.type = 'hidden';
+    referrerInput.name = 'referrer';
+    referrerInput.value = '{{ referrer }}';
+    form.appendChild(referrerInput);
+    
+    const searchQueryInput = document.createElement('input');
+    searchQueryInput.type = 'hidden';
+    searchQueryInput.name = 'search_query';
+    searchQueryInput.value = '{{ search_query }}';
+    form.appendChild(searchQueryInput);
+    
+    const contentTypeInput = document.createElement('input');
+    contentTypeInput.type = 'hidden';
+    contentTypeInput.name = 'content_type';
+    contentTypeInput.value = '{{ content_type }}';
+    form.appendChild(contentTypeInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Smart back button function
+function goBack() {
+    const referrer = '{{ referrer }}';
+    const searchQuery = '{{ search_query }}';
+    const contentType = '{{ content_type }}';
+    
+    switch(referrer) {
+        case 'search':
+            let searchUrl = '{{ url_for("search") }}';
+            const params = new URLSearchParams();
+            if (searchQuery) {
+                params.append('query', searchQuery);
+            }
+            if (contentType && contentType !== 'all') {
+                params.append('content_type', contentType);
+            }
+            if (params.toString()) {
+                searchUrl += '?' + params.toString();
+            }
+            window.location.href = searchUrl;
+            break;
+        case 'category':
+            {% if movie.info and movie.info.category_id %}
+            window.location.href = '{{ url_for("movies", category_id=movie.info.category_id) }}';
+            {% else %}
+            window.location.href = '{{ url_for("movies_index") }}';
+            {% endif %}
+            break;
+        default:
+            if (document.referrer && document.referrer.includes(window.location.origin)) {
+                window.history.back();
+            } else {
+                window.location.href = '{{ url_for("main") }}';
+            }
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName.toLowerCase() !== 'input') {
+        switch(e.key) {
+            case ' ':
+                e.preventDefault();
+                if (player.paused()) {
+                    player.play();
+                } else {
+                    player.pause();
+                }
+                break;
+            case 'f':
+            case 'F':
+                e.preventDefault();
+                toggleFullscreen();
+                break;
+            case 'p':
+            case 'P':
+                e.preventDefault();
+                togglePictureInPicture();
+                break;
+        }
+    }
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (player) {
+        player.dispose();
+    }
+});
+</script>
+{% endblock %}

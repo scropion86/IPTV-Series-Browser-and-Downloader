@@ -27,6 +27,13 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = 'your-secret-key'
 
+# Add JSON filter for Jinja2 templates
+import json
+def tojsonfilter(obj):
+    return json.dumps(obj)
+
+app.jinja_env.filters['tojsonfilter'] = tojsonfilter
+
 
 DOWNLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
 
@@ -880,6 +887,121 @@ def cache_data():
     thread.start()
 
     return jsonify({"status": "success", "message": "Caching process initiated in background."})
+
+# Streaming routes
+@app.route('/watch/movie/<vod_id>')
+def watch_movie(vod_id):
+    """Render streaming page for movies"""
+    referrer = request.args.get('referrer', 'search')
+    search_query = request.args.get('search_query', '')
+    content_type = request.args.get('content_type', 'all')
+    
+    movie_data = get_movie_info(vod_id)
+    if not movie_data:
+        return render_template('error.html', 
+                             message="Could not fetch movie information"), 503
+    
+    # Get movie info for stream URL
+    movie_info = movie_data.get('movie_data', {})
+    stream_id = movie_info.get('stream_id', vod_id)
+    container_extension = movie_info.get('container_extension', 'mp4')
+    
+    # Construct stream URL
+    base_url = BASE_URL.rstrip('/')
+    stream_url = f"{base_url}/movie/{USERNAME}/{PASSWORD}/{stream_id}.{container_extension}"
+    
+    return render_template('watch_movie.html', 
+                         movie=movie_data, 
+                         vod_id=vod_id,
+                         stream_url=stream_url,
+                         referrer=referrer,
+                         search_query=search_query,
+                         content_type=content_type)
+
+@app.route('/watch/series/<series_id>/<episode_id>')
+def watch_series(series_id, episode_id):
+    """Render streaming page for series episodes"""
+    referrer = request.args.get('referrer', 'search')
+    search_query = request.args.get('search_query', '')
+    content_type = request.args.get('content_type', 'all')
+    season = request.args.get('season', '1')
+    
+    series_data = get_series_info(series_id)
+    if not series_data:
+        return render_template('error.html', 
+                             message="Could not fetch series information"), 503
+    
+    # Find the episode info
+    episode_info = None
+    current_season = None
+    episode_list = []
+    
+    for season_num, episodes in series_data.get('episodes', {}).items():
+        for episode in episodes:
+            if str(episode.get('id')) == str(episode_id):
+                episode_info = episode
+                current_season = season_num
+                episode_list = episodes
+                break
+        if episode_info:
+            break
+    
+    if not episode_info:
+        return render_template('error.html', 
+                             message="Episode not found"), 404
+    
+    # Construct stream URL
+    base_url = BASE_URL.rstrip('/')
+    container_extension = episode_info.get('container_extension', 'mp4')
+    stream_url = f"{base_url}/series/{USERNAME}/{PASSWORD}/{episode_id}.{container_extension}"
+    
+    return render_template('watch_series.html', 
+                         series=series_data,
+                         series_id=series_id,
+                         episode=episode_info,
+                         episode_id=episode_id,
+                         current_season=current_season,
+                         episode_list=episode_list,
+                         stream_url=stream_url,
+                         referrer=referrer,
+                         search_query=search_query,
+                         content_type=content_type)
+
+@app.route('/stream_proxy')
+def stream_proxy():
+    """Proxy streaming requests to handle CORS and authentication"""
+    stream_url = request.args.get('url')
+    if not stream_url:
+        return "No stream URL provided", 400
+    
+    try:
+        # Add range support for video seeking
+        range_header = request.headers.get('Range')
+        headers = {}
+        if range_header:
+            headers['Range'] = range_header
+        
+        response = session.get(stream_url, stream=True, headers=headers)
+        
+        def generate():
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    yield chunk
+        
+        return Response(
+            generate(),
+            status=response.status_code,
+            content_type=response.headers.get('content-type', 'video/mp4'),
+            headers={
+                'Accept-Ranges': 'bytes',
+                'Content-Length': response.headers.get('content-length', ''),
+                'Content-Range': response.headers.get('content-range', ''),
+                'Cache-Control': 'no-cache',
+            }
+        )
+    except Exception as e:
+        logger.error(f"Streaming proxy error: {str(e)}")
+        return f"Streaming error: {str(e)}", 500
 
 # Main selection page
 @app.route('/main')

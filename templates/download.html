@@ -1,126 +1,157 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container">
-        <a href="#" onclick="goBack()" class="button">← Back</a>
-        <h1>{{ series.info.name }}</h1>
-        <div class="series-info">
-            <img src="{{ series.info.cover }}" alt="{{ series.info.name }}">
-            <p>{{ series.info.plot }}</p>
-            <p><strong>Total Seasons:</strong> {{ series.episodes|length }}</p>
-            
-            {% set total_size = namespace(value=0) %}
-            {% set total_duration = namespace(value=0) %}
-            {% set episode_count = namespace(value=0) %}
-            
+<div class="container">
+    <a href="#" onclick="goBack()" class="button">← Back</a>
+    <h1>{{ series.info.name }}</h1>
+    <div class="series-info">
+        <img src="{{ series.info.cover }}" alt="{{ series.info.name }}">
+        <p>{{ series.info.plot }}</p>
+        <p><strong>Total Seasons:</strong> {{ series.episodes|length }}</p>
+
+        {% set total_size = namespace(value=0) %}
+        {% set total_duration = namespace(value=0) %}
+        {% set episode_count = namespace(value=0) %}
+
+        {% for season, episodes in series.episodes.items() %}
+        {% for episode in episodes %}
+        {% if episode.info and episode.info.bitrate and episode.info.duration_secs %}
+        {% set total_size.value = total_size.value + (episode.info.bitrate * 1000 * episode.info.duration_secs / 8 /
+        1024 / 1024) %}
+        {% set total_duration.value = total_duration.value + episode.info.duration_secs %}
+        {% set episode_count.value = episode_count.value + 1 %}
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+
+        <div class="series-stats">
+            <p><strong>Average File Size:</strong> {{ "%.2f"|format(total_size.value / episode_count.value) }} MB</p>
+            <p><strong>Average Duration:</strong> {{ "%02d:%02d"|format((total_duration.value / episode_count.value) //
+                60, (total_duration.value / episode_count.value) % 60) }}</p>
+        </div>
+
+        <ul>
             {% for season, episodes in series.episodes.items() %}
-                {% for episode in episodes %}
-                    {% if episode.info and episode.info.bitrate and episode.info.duration_secs %}
-                        {% set total_size.value = total_size.value + (episode.info.bitrate * 1000 * episode.info.duration_secs / 8 / 1024 / 1024) %}
-                        {% set total_duration.value = total_duration.value + episode.info.duration_secs %}
-                        {% set episode_count.value = episode_count.value + 1 %}
-                    {% endif %}
-                {% endfor %}
+            <li><strong>Season {{ season }}:</strong> {{ episodes|length }} episodes</li>
             {% endfor %}
-            
-            <div class="series-stats">
-                <p><strong>Average File Size:</strong> {{ "%.2f"|format(total_size.value / episode_count.value) }} MB</p>
-                <p><strong>Average Duration:</strong> {{ "%02d:%02d"|format((total_duration.value / episode_count.value) // 60, (total_duration.value / episode_count.value) % 60) }}</p>
-            </div>
-            
-            <ul>
-                {% for season, episodes in series.episodes.items() %}
-                <li><strong>Season {{ season }}:</strong> {{ episodes|length }} episodes</li>
-                {% endfor %}
-            </ul>
-            <div class="episode-list">
-                {% for season, episodes in series.episodes.items() %}
-                <div class="season">
-                    <h2>Season {{ season }}</h2>
+        </ul>
+        <div class="episode-list">
+            {% for season, episodes in series.episodes.items() %}
+            <div class="season">
+                <h2>Season {{ season }}</h2>
+
+                <!-- Episode List with Watch/Download Options -->
+                <div class="episode-list-detailed">
+                    {% for episode in episodes %}
+                    <div class="episode-item-detailed">
+                        <div class="episode-info-detailed">
+                            <h4>{{ episode.title }}</h4>
+                            <span class="episode-meta">Episode {{ episode.episode_num if episode.episode_num else
+                                loop.index }}</span>
+                            {% if episode.info and episode.info.duration_secs %}
+                            <span class="episode-duration">{{ (episode.info.duration_secs // 60) }}min</span>
+                            {% endif %}
+                        </div>
+                        <div class="episode-actions">
+                            <button onclick="watchEpisode('{{ episode.id }}')" class="button primary watch-btn">🎬
+                                Watch</button>
+                            <button onclick="downloadSingleEpisode('{{ episode.id }}', {{ episode.title | tojson }})"
+                                class="button download-btn">📥 Download</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Bulk Download Section -->
+                <div class="bulk-download-section">
+                    <h3>Bulk Download</h3>
                     <form action="{{ url_for('download_episodes') }}" method="POST" class="download-form">
                         <input type="hidden" name="series_id" value="{{ series_id }}">
                         <input type="hidden" name="season" value="{{ season }}">
                         <div class="episode-range">
                             <label>From episode:</label>
-                            <input type="number" name="start_episode" min="1" max="{{ episodes|length }}" value="1" required>
+                            <input type="number" name="start_episode" min="1" max="{{ episodes|length }}" value="1"
+                                required>
                             <label>To episode:</label>
-                            <input type="number" name="end_episode" min="1" max="{{ episodes|length }}" value="{{ episodes|length }}" required>
+                            <input type="number" name="end_episode" min="1" max="{{ episodes|length }}"
+                                value="{{ episodes|length }}" required>
                         </div>
                         <button type="submit" class="button primary">Download Selected Episodes</button>
                     </form>
-                    <div id="download-status-{{ season }}" class="download-status" style="display: none;">
-                        <h3>Download Progress</h3>
-                        
-                        <!-- Overall Progress -->
-                        <div class="overall-progress">
-                            <h4>Overall Progress</h4>
-                            <div class="progress-container">
-                                <div class="progress-bar">
-                                    <div class="overall-progress-fill"></div>
-                                </div>
-                                <div class="progress-text overall-progress-text">0%</div>
+                </div>
+                <div id="download-status-{{ season }}" class="download-status" style="display: none;">
+                    <h3>Download Progress</h3>
+
+                    <!-- Overall Progress -->
+                    <div class="overall-progress">
+                        <h4>Overall Progress</h4>
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="overall-progress-fill"></div>
                             </div>
-                            <div class="overall-stats">
-                                <span class="episode-counter">Episode 0 of 0</span>
-                                <span class="overall-time">Elapsed: 00:00</span>
+                            <div class="progress-text overall-progress-text">0%</div>
+                        </div>
+                        <div class="overall-stats">
+                            <span class="episode-counter">Episode 0 of 0</span>
+                            <span class="overall-time">Elapsed: 00:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Current Episode Progress -->
+                    <div class="current-episode">
+                        <h4>Current Episode</h4>
+                        <div class="episode-name">Ready to start...</div>
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="episode-progress-fill"></div>
+                            </div>
+                            <div class="progress-text episode-progress-text">0%</div>
+                        </div>
+                        <div class="episode-details">
+                            <div class="detail-row">
+                                <span class="detail-label">Downloaded:</span>
+                                <span class="downloaded-size">0 B / 0 B</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Speed:</span>
+                                <span class="download-speed">0 B/s</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">ETA:</span>
+                                <span class="eta-time">--:--</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Elapsed:</span>
+                                <span class="elapsed-time">00:00</span>
                             </div>
                         </div>
-                        
-                        <!-- Current Episode Progress -->
-                        <div class="current-episode">
-                            <h4>Current Episode</h4>
-                            <div class="episode-name">Ready to start...</div>
-                            <div class="progress-container">
-                                <div class="progress-bar">
-                                    <div class="episode-progress-fill"></div>
-                                </div>
-                                <div class="progress-text episode-progress-text">0%</div>
-                            </div>
-                            <div class="episode-details">
-                                <div class="detail-row">
-                                    <span class="detail-label">Downloaded:</span>
-                                    <span class="downloaded-size">0 B / 0 B</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Speed:</span>
-                                    <span class="download-speed">0 B/s</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">ETA:</span>
-                                    <span class="eta-time">--:--</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Elapsed:</span>
-                                    <span class="elapsed-time">00:00</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Status Messages -->
-                        <div class="status-messages">
-                            <div class="status-text">Initializing...</div>
-                            <div class="completion-stats" style="display: none;">
-                                <div class="stats-row">
-                                    <span class="success-count">0 successful</span>
-                                    <span class="failed-count">0 failed</span>
-                                </div>
+                    </div>
+
+                    <!-- Status Messages -->
+                    <div class="status-messages">
+                        <div class="status-text">Initializing...</div>
+                        <div class="completion-stats" style="display: none;">
+                            <div class="stats-row">
+                                <span class="success-count">0 successful</span>
+                                <span class="failed-count">0 failed</span>
                             </div>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
             </div>
+            {% endfor %}
         </div>
     </div>
+</div>
 
-    <script>
+<script>
     document.querySelectorAll('.download-form').forEach(form => {
-        form.addEventListener('submit', async function(e) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
             const formData = new FormData(this);
             const season = formData.get('season');
             const statusDiv = document.getElementById(`download-status-${season}`);
-            
+
             // Get all progress elements
             const overallProgressBar = statusDiv.querySelector('.overall-progress-fill');
             const overallProgressText = statusDiv.querySelector('.overall-progress-text');
@@ -137,36 +168,36 @@
             const completionStats = statusDiv.querySelector('.completion-stats');
             const successCount = statusDiv.querySelector('.success-count');
             const failedCount = statusDiv.querySelector('.failed-count');
-            
+
             // Show status div and disable form
             statusDiv.style.display = 'block';
             form.querySelectorAll('input, button').forEach(el => el.disabled = true);
-            
+
             try {
                 const response = await fetch(this.action, {
                     method: 'POST',
                     body: formData
                 });
                 const data = await response.json();
-                
+
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                
+
                 // Connect to SSE for progress updates
                 const eventSource = new EventSource('/progress');
-                
-                eventSource.onmessage = function(event) {
+
+                eventSource.onmessage = function (event) {
                     const progress = JSON.parse(event.data);
                     console.log('Progress update:', progress);  // Debug log
-                    
+
                     // Handle different status types
-                    switch(progress.status) {
+                    switch (progress.status) {
                         case 'starting':
                             statusText.innerHTML = `<span class="info">${progress.message}</span>`;
                             episodeCounter.textContent = `Episode 0 of ${progress.total_episodes}`;
                             break;
-                            
+
                         case 'episode_starting':
                             episodeName.textContent = progress.episode;
                             statusText.innerHTML = `<span class="info">${progress.message}</span>`;
@@ -179,13 +210,13 @@
                             etaTime.textContent = '--:--';
                             elapsedTime.textContent = '00:00';
                             break;
-                            
+
                         case 'downloading':
                             // Update episode progress
                             const episodePercentage = Math.round(progress.progress);
                             episodeProgressBar.style.width = `${episodePercentage}%`;
                             episodeProgressText.textContent = `${episodePercentage}%`;
-                            
+
                             // Update detailed information
                             if (progress.formatted_downloaded && progress.formatted_total) {
                                 downloadedSize.textContent = `${progress.formatted_downloaded} / ${progress.formatted_total}`;
@@ -199,28 +230,28 @@
                             if (progress.formatted_elapsed) {
                                 elapsedTime.textContent = progress.formatted_elapsed;
                             }
-                            
+
                             statusText.innerHTML = `<span class="info">Downloading ${progress.episode}...</span>`;
                             break;
-                            
+
                         case 'episode_complete':
                             episodeProgressBar.style.width = '100%';
                             episodeProgressText.textContent = '100%';
                             statusText.innerHTML = `<span class="success">Completed: ${progress.episode}</span>`;
                             break;
-                            
+
                         case 'overall_progress':
                             // Update overall progress
                             const overallPercentage = Math.round(progress.overall_progress);
                             overallProgressBar.style.width = `${overallPercentage}%`;
                             overallProgressText.textContent = `${overallPercentage}%`;
-                            
+
                             episodeCounter.textContent = `Episode ${progress.completed_episodes} of ${progress.total_episodes}`;
-                            
+
                             if (progress.formatted_overall_elapsed) {
                                 overallTime.textContent = `Elapsed: ${progress.formatted_overall_elapsed}`;
                             }
-                            
+
                             // Update completion stats
                             if (progress.successful_downloads !== undefined && progress.failed_downloads !== undefined) {
                                 successCount.textContent = `${progress.successful_downloads} successful`;
@@ -228,27 +259,27 @@
                                 completionStats.style.display = 'block';
                             }
                             break;
-                            
+
                         case 'complete':
                             overallProgressBar.style.width = '100%';
                             overallProgressText.textContent = '100%';
                             episodeProgressBar.style.width = '100%';
                             episodeProgressText.textContent = '100%';
-                            
+
                             statusText.innerHTML = `<span class="success">${progress.message}</span>`;
                             episodeName.textContent = 'All downloads completed!';
-                            
+
                             // Show final stats
                             if (progress.successful_downloads !== undefined && progress.failed_downloads !== undefined) {
                                 successCount.textContent = `${progress.successful_downloads} successful`;
                                 failedCount.textContent = `${progress.failed_downloads} failed`;
                                 completionStats.style.display = 'block';
                             }
-                            
+
                             eventSource.close();
                             form.querySelectorAll('input, button').forEach(el => el.disabled = false);
                             break;
-                            
+
                         case 'error':
                             statusText.innerHTML = `<span class="error">Error: ${progress.error || progress.message || 'Download failed'}</span>`;
                             eventSource.close();
@@ -256,29 +287,57 @@
                             break;
                     }
                 };
-                
-                eventSource.onerror = function() {
+
+                eventSource.onerror = function () {
                     statusText.innerHTML = '<span class="error">Connection lost. Please refresh the page.</span>';
                     eventSource.close();
                     form.querySelectorAll('input, button').forEach(el => el.disabled = false);
                 };
-                
+
             } catch (error) {
                 statusText.innerHTML = `<span class="error">Error: ${error.message}</span>`;
                 form.querySelectorAll('input, button').forEach(el => el.disabled = false);
             }
         });
     });
-    
+
+    // Watch episode function
+    function watchEpisode(episodeId) {
+        const series_id = '{{ series_id }}';
+        const referrer = '{{ referrer }}';
+        const searchQuery = '{{ search_query }}';
+        const contentType = '{{ content_type }}';
+
+        let watchUrl = `/watch/series/${series_id}/${episodeId}`;
+        const params = new URLSearchParams();
+
+        if (referrer) params.append('referrer', referrer);
+        if (searchQuery) params.append('search_query', searchQuery);
+        if (contentType) params.append('content_type', contentType);
+
+        if (params.toString()) {
+            watchUrl += '?' + params.toString();
+        }
+
+        window.open(watchUrl, '_blank');
+    }
+
+    // Download single episode function
+    function downloadSingleEpisode(episodeId, episodeTitle) {
+        // For now, redirect to bulk download with single episode
+        // This could be enhanced to download individual episodes
+        alert(`Download functionality for individual episodes coming soon!\nEpisode: ${episodeTitle}`);
+    }
+
     // Smart back button function
     function goBack() {
         const referrer = '{{ referrer }}';
         const searchQuery = '{{ search_query }}';
         const contentType = '{{ content_type }}';
-        
+
         // For new tabs opened from search, we can't use browser history
         // So we'll construct the appropriate URL based on referrer
-        switch(referrer) {
+        switch (referrer) {
             case 'search':
                 // Reconstruct search URL with query and content type
                 let searchUrl = '{{ url_for("search") }}';
@@ -296,7 +355,7 @@
                 break;
             case 'category':
                 // Try to go to series categories if we have category info
-                {% if series.info.category_id %}
+                {% if series.info and series.info.category_id %}
                 window.location.href = '{{ url_for("series", category_id=series.info.category_id) }}';
                 {% else %}
                 window.location.href = '{{ url_for("series_index") }}';
@@ -311,5 +370,5 @@
                 }
         }
     }
-    </script>
+</script>
 {% endblock %}
