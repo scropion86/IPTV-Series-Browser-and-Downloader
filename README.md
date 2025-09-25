@@ -101,79 +101,14 @@ Open your browser and navigate to:
 - **Local**: `http://localhost:5000`
 - **Network**: `http://your-ip:5000` (accessible from other devices)
 
-### Method 2: Docker (Recommended for Production)
+### Method 2: Docker (Recommended)
 
-#### 1. Create Dockerfile
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application files
-COPY . .
-
-# Create downloads directory
-RUN mkdir -p downloads
-
-# Expose port
-EXPOSE 5000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/ || exit 1
-
-# Run application
-CMD ["python", "app.py"]
-```
-
-#### 2. Create requirements.txt
-```txt
-Flask>=2.3.0
-requests>=2.31.0
-urllib3>=2.0.0
-tqdm>=4.65.0
-aiohttp>=3.8.0
-```
-
-#### 3. Build Docker Image
+#### Quick Start with Docker
 ```bash
-# Build the image
-docker build -t iptv-browser:latest .
+# 1. Build the image
+docker build -t iptv-browser .
 
-# Build with specific tag
-docker build -t iptv-browser:v1.0.0 .
-```
-
-#### 4. Run Docker Container
-```bash
-# Basic run
-docker run -d \
-  --name iptv-browser \
-  -p 5000:5000 \
-  -v $(pwd)/downloads:/app/downloads \
-  -v $(pwd)/config.py:/app/config.py \
-  iptv-browser:latest
-
-# Run with environment variables
-docker run -d \
-  --name iptv-browser \
-  -p 5000:5000 \
-  -e BASE_URL="http://your-provider.com:8080/" \
-  -e USERNAME="your_username" \
-  -e PASSWORD="your_password" \
-  -v $(pwd)/downloads:/app/downloads \
-  iptv-browser:latest
-
-# Run with restart policy
+# 2. Run with config file
 docker run -d \
   --name iptv-browser \
   --restart unless-stopped \
@@ -181,262 +116,64 @@ docker run -d \
   -v $(pwd)/downloads:/app/downloads \
   -v $(pwd)/config.py:/app/config.py \
   iptv-browser:latest
+
+# 3. Access at http://localhost:5000
 ```
 
-#### 5. Docker Image Management
-
-##### Export/Import Images
-
-**Linux/macOS:**
+#### Alternative: Run with Environment Variables
 ```bash
-# Export image to compressed file
-docker save iptv-browser:latest | gzip > iptv-browser-latest.tar.gz
-
-# Export image to uncompressed file
-docker save iptv-browser:latest > iptv-browser-latest.tar
-
-# Import image from compressed file
-docker load < iptv-browser-latest.tar.gz
-
-# Import image from uncompressed file
-docker load < iptv-browser-latest.tar
-
-# Import and verify the image
-gunzip -c iptv-browser-latest.tar.gz | docker load
-docker images | grep iptv-browser
-
-# Import from different location
-docker load -i /path/to/iptv-browser-latest.tar.gz
+docker run -d \
+  --name iptv-browser \
+  --restart unless-stopped \
+  -p 5000:5000 \
+  -e BASE_URL="http://your-provider.com:8080/" \
+  -e USERNAME="your_username" \
+  -e PASSWORD="your_password" \
+  -v $(pwd)/downloads:/app/downloads \
+  iptv-browser:latest
 ```
 
-**Windows (PowerShell):**
-```powershell
-# Export image to uncompressed file (recommended for Windows)
-docker save iptv-browser:latest -o iptv-browser-latest.tar
+#### Docker Management Commands
 
-# Import image from file
-docker load -i iptv-browser-latest.tar
-
-# Alternative: Export and compress using PowerShell
-docker save iptv-browser:latest | Compress-Archive -DestinationPath iptv-browser-latest.zip
-
-# Import compressed image (extract first)
-Expand-Archive -Path iptv-browser-latest.zip -DestinationPath temp
-docker load -i temp/iptv-browser-latest.tar
-
-# Verify imported image
-docker images | Select-String "iptv-browser"
-```
-
-**Windows (Command Prompt):**
-```cmd
-# Export image to file
-docker save iptv-browser:latest -o iptv-browser-latest.tar
-
-# Import image from file
-docker load -i iptv-browser-latest.tar
-
-# Verify imported image
-docker images | findstr "iptv-browser"
-```
-
-**Cross-Platform (Recommended):**
+**Basic Operations:**
 ```bash
-# Export (works on all platforms)
-docker save iptv-browser:latest -o iptv-browser-latest.tar
-
-# Import (works on all platforms)
-docker load -i iptv-browser-latest.tar
-
-# List images to verify
-docker images iptv-browser
-```
-
-##### Registry Operations
-```bash
-# Push to registry (if you have one)
-docker tag iptv-browser:latest your-registry/iptv-browser:latest
-docker push your-registry/iptv-browser:latest
-
-# Pull from registry
-docker pull your-registry/iptv-browser:latest
-```
-
-##### Container Management
-```bash
-# View running containers
+# View containers and logs
 docker ps
-
-# View all containers (including stopped)
-docker ps -a
-
-# View logs
 docker logs iptv-browser
 
-# Follow logs in real-time
-docker logs -f iptv-browser
-
-# Stop container
+# Stop/start/restart
 docker stop iptv-browser
-
-# Start stopped container
 docker start iptv-browser
-
-# Restart container
 docker restart iptv-browser
-
-# Remove container
-docker rm iptv-browser
-
-# Remove container forcefully
-docker rm -f iptv-browser
 ```
 
-##### Image Management
+**Image Sharing (Cross-Platform):**
 ```bash
-# List all images
-docker images
+# Export image
+docker save iptv-browser:latest -o iptv-browser.tar
 
-# Remove image
-docker rmi iptv-browser:latest
-
-# Remove unused images
-docker image prune
-
-# Remove all unused images
-docker image prune -a
-
-# View image details
-docker inspect iptv-browser:latest
+# Import image
+docker load -i iptv-browser.tar
 ```
 
-### 💡 Common Usage Scenarios
+### Method 3: Docker Compose (Easiest)
 
-#### Scenario 1: Sharing Image Locally (Cross-Platform)
+#### Quick Start
 ```bash
-# On source machine (any OS)
-docker save iptv-browser:latest -o iptv-browser-latest.tar
-
-# Transfer file to target machine, then import:
-docker load -i iptv-browser-latest.tar
-
-# Verify import
-docker images iptv-browser
-```
-
-#### Scenario 2: Windows-Specific Sharing with Compression
-```powershell
-# Export and compress (PowerShell)
-docker save iptv-browser:latest -o iptv-browser-latest.tar
-Compress-Archive -Path iptv-browser-latest.tar -DestinationPath iptv-browser-latest.zip
-
-# On target Windows machine:
-Expand-Archive -Path iptv-browser-latest.zip -DestinationPath .
-docker load -i iptv-browser-latest.tar
-Remove-Item iptv-browser-latest.tar  # Cleanup
-```
-
-#### Scenario 3: Backup and Restore
-```bash
-# Backup (create backup directory first)
-mkdir -p backup
-docker save iptv-browser:latest -o backup/iptv-browser-backup.tar
-
-# Restore
-docker load -i backup/iptv-browser-backup.tar
-```
-
-#### Scenario 4: Offline Deployment
-```bash
-# Prepare offline package
-docker save iptv-browser:latest -o iptv-browser-offline.tar
-
-# Deploy on offline system
-docker load -i iptv-browser-offline.tar
-docker run -d --name iptv-browser -p 5000:5000 iptv-browser:latest
-```
-
-#### Scenario 5: Multiple Image Export/Import
-```bash
-# Export multiple images
-docker save iptv-browser:latest iptv-browser:v1.0.0 -o iptv-browser-multi.tar
-
-# Import multiple images
-docker load -i iptv-browser-multi.tar
-
-# List imported images
-docker images iptv-browser
-```
-
-### Method 3: Docker Compose (Recommended for Easy Management)
-
-#### 1. Choose Your Configuration
-
-**Basic Configuration (docker-compose.yml):**
-- Uses config.py file for IPTV settings
-- Suitable for development and testing
-
-**Environment Variables (docker-compose.env.yml):**
-- Uses environment variables for IPTV settings
-- Better for containerized deployments
-
-**Production Ready (docker-compose.prod.yml):**
-- Includes resource limits and security options
-- Logging configuration and network isolation
-
-#### 2. Run with Docker Compose
-
-**Basic Setup:**
-```bash
-# Start services (uses docker-compose.yml by default)
+# 1. Start the application
 docker-compose up -d
 
-# View logs
+# 2. View logs
 docker-compose logs -f
 
-# Stop services
+# 3. Stop when done
 docker-compose down
-
-# Rebuild and restart
-docker-compose up -d --build
 ```
 
-**Using Environment Variables:**
+#### Using Environment Variables
+Edit `docker-compose.env.yml` with your IPTV credentials, then:
 ```bash
-# Use the environment variables version
 docker-compose -f docker-compose.env.yml up -d
-
-# Edit environment variables first
-nano docker-compose.env.yml  # Update BASE_URL, USERNAME, PASSWORD
-
-# Then start
-docker-compose -f docker-compose.env.yml up -d
-```
-
-**Production Deployment:**
-```bash
-# Use production configuration
-docker-compose -f docker-compose.prod.yml up -d
-
-# Monitor with resource limits
-docker-compose -f docker-compose.prod.yml logs -f
-docker stats iptv-browser
-```
-
-#### 3. Docker Compose Management
-```bash
-# View running services
-docker-compose ps
-
-# Scale services (if needed)
-docker-compose up -d --scale iptv-browser=2
-
-# Update and restart
-docker-compose pull
-docker-compose up -d
-
-# Clean up everything
-docker-compose down -v --remove-orphans
 ```
 
 ## 🎯 Usage Guide
