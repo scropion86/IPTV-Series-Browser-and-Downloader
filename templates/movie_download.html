@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <a href="#" onclick="goBack()" class="button">← Back</a>
+        <h1>{{ movie.info.name }}</h1>
+        <div class="movie-info">
+            <div class="movie-poster">
+                <img src="{{ movie.info.movie_image }}" alt="{{ movie.info.name }}">
+            </div>
+            <div class="movie-details-section">
+                <div class="movie-basic-info">
+                    {% if movie.info.plot %}
+                    <div class="info-item">
+                        <strong>Plot:</strong>
+                        <p>{{ movie.info.plot }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if movie.info.cast %}
+                    <div class="info-item">
+                        <strong>Cast:</strong>
+                        <p>{{ movie.info.cast }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if movie.info.director %}
+                    <div class="info-item">
+                        <strong>Director:</strong>
+                        <p>{{ movie.info.director }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if movie.info.genre %}
+                    <div class="info-item">
+                        <strong>Genre:</strong>
+                        <p>{{ movie.info.genre }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if movie.info.releasedate %}
+                    <div class="info-item">
+                        <strong>Release Date:</strong>
+                        <p>{{ movie.info.releasedate }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if movie.info.rating %}
+                    <div class="info-item">
+                        <strong>Rating:</strong>
+                        <p>{{ movie.info.rating }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if movie.info.duration %}
+                    <div class="info-item">
+                        <strong>Duration:</strong>
+                        <p>{{ movie.info.duration }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="download-section">
+                    <h3>Download Movie</h3>
+                    <form action="{{ url_for('download_movie') }}" method="POST" class="download-form">
+                        <input type="hidden" name="vod_id" value="{{ vod_id }}">
+                        <button type="submit" class="button primary">Download Movie</button>
+                    </form>
+                    
+                    <div id="download-status" class="download-status" style="display: none;">
+                        <h3>Download Progress</h3>
+                        
+                        <!-- Movie Progress -->
+                        <div class="movie-progress">
+                            <div class="movie-name">Ready to start...</div>
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="movie-progress-fill"></div>
+                                </div>
+                                <div class="progress-text movie-progress-text">0%</div>
+                            </div>
+                            <div class="movie-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Downloaded:</span>
+                                    <span class="downloaded-size">0 B / 0 B</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Speed:</span>
+                                    <span class="download-speed">0 B/s</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">ETA:</span>
+                                    <span class="eta-time">--:--</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Elapsed:</span>
+                                    <span class="elapsed-time">00:00</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Messages -->
+                        <div class="status-messages">
+                            <div class="status-text">Initializing...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.querySelector('.download-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const statusDiv = document.getElementById('download-status');
+        
+        // Get all progress elements
+        const movieProgressBar = statusDiv.querySelector('.movie-progress-fill');
+        const movieProgressText = statusDiv.querySelector('.movie-progress-text');
+        const statusText = statusDiv.querySelector('.status-text');
+        const movieName = statusDiv.querySelector('.movie-name');
+        const downloadedSize = statusDiv.querySelector('.downloaded-size');
+        const downloadSpeed = statusDiv.querySelector('.download-speed');
+        const etaTime = statusDiv.querySelector('.eta-time');
+        const elapsedTime = statusDiv.querySelector('.elapsed-time');
+        
+        // Show status div and disable form
+        statusDiv.style.display = 'block';
+        this.querySelectorAll('input, button').forEach(el => el.disabled = true);
+        
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // Connect to SSE for progress updates
+            const eventSource = new EventSource('/progress');
+            
+            eventSource.onmessage = function(event) {
+                const progress = JSON.parse(event.data);
+                console.log('Progress update:', progress);  // Debug log
+                
+                // Handle different status types
+                switch(progress.status) {
+                    case 'downloading':
+                        // Update movie progress
+                        const moviePercentage = Math.round(progress.progress);
+                        movieProgressBar.style.width = `${moviePercentage}%`;
+                        movieProgressText.textContent = `${moviePercentage}%`;
+                        
+                        // Update movie name
+                        if (progress.movie) {
+                            movieName.textContent = `Downloading: ${progress.movie}`;
+                        }
+                        
+                        // Update detailed information
+                        if (progress.formatted_downloaded && progress.formatted_total) {
+                            downloadedSize.textContent = `${progress.formatted_downloaded} / ${progress.formatted_total}`;
+                        }
+                        if (progress.formatted_speed) {
+                            downloadSpeed.textContent = progress.formatted_speed;
+                        }
+                        if (progress.formatted_eta) {
+                            etaTime.textContent = progress.formatted_eta;
+                        }
+                        if (progress.formatted_elapsed) {
+                            elapsedTime.textContent = progress.formatted_elapsed;
+                        }
+                        
+                        statusText.innerHTML = `<span class="info">Downloading movie...</span>`;
+                        break;
+                        
+                    case 'complete':
+                        movieProgressBar.style.width = '100%';
+                        movieProgressText.textContent = '100%';
+                        
+                        statusText.innerHTML = `<span class="success">Download completed successfully!</span>`;
+                        movieName.textContent = 'Movie downloaded successfully!';
+                        
+                        eventSource.close();
+                        this.querySelectorAll('input, button').forEach(el => el.disabled = false);
+                        break;
+                        
+                    case 'error':
+                        statusText.innerHTML = `<span class="error">Error: ${progress.error || 'Download failed'}</span>`;
+                        eventSource.close();
+                        this.querySelectorAll('input, button').forEach(el => el.disabled = false);
+                        break;
+                }
+            };
+            
+            eventSource.onerror = function() {
+                statusText.innerHTML = '<span class="error">Connection lost. Please refresh the page.</span>';
+                eventSource.close();
+                this.querySelectorAll('input, button').forEach(el => el.disabled = false);
+            };
+            
+        } catch (error) {
+            statusText.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+            this.querySelectorAll('input, button').forEach(el => el.disabled = false);
+        }
+    });
+    
+    // Smart back button function
+    function goBack() {
+        const referrer = '{{ referrer }}';
+        const searchQuery = '{{ search_query }}';
+        const contentType = '{{ content_type }}';
+        
+        // For new tabs opened from search, we can't use browser history
+        // So we'll construct the appropriate URL based on referrer
+        switch(referrer) {
+            case 'search':
+                // Reconstruct search URL with query and content type
+                let searchUrl = '{{ url_for("search") }}';
+                const params = new URLSearchParams();
+                if (searchQuery) {
+                    params.append('query', searchQuery);
+                }
+                if (contentType && contentType !== 'all') {
+                    params.append('content_type', contentType);
+                }
+                if (params.toString()) {
+                    searchUrl += '?' + params.toString();
+                }
+                window.location.href = searchUrl;
+                break;
+            case 'category':
+                // Try to go to movie categories if we have category info
+                {% if movie.info.category_id %}
+                window.location.href = '{{ url_for("movies", category_id=movie.info.category_id) }}';
+                {% else %}
+                window.location.href = '{{ url_for("movies_index") }}';
+                {% endif %}
+                break;
+            default:
+                // Try browser history first, then fallback to main page
+                if (document.referrer && document.referrer.includes(window.location.origin)) {
+                    window.history.back();
+                } else {
+                    window.location.href = '{{ url_for("main") }}';
+                }
+        }
+    }
+    </script>
+{% endblock %}

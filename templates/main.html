@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <h1 class="page-title">Media Library</h1>
+        <p class="subtitle">Choose your content type</p>
+        
+        <div class="media-selection">
+            <a href="{{ url_for('series_index') }}" class="media-card">
+                <div class="media-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21,3H3C1.89,3 1,3.89 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5C23,3.89 22.1,3 21,3M21,19H3V5H21V19Z"/>
+                        <path d="M10,15L15.19,12L10,9V15Z"/>
+                    </svg>
+                </div>
+                <h2>TV Series</h2>
+                <p>Browse and download TV series episodes</p>
+                {% if series_stats.total_items > 0 %}
+                <div class="media-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">{{ series_stats.categories }}</span>
+                        <span class="stat-label">Categories</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{ series_stats.total_items }}</span>
+                        <span class="stat-label">Series</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="media-stats no-data">
+                    <span class="no-data-text">No cached data</span>
+                </div>
+                {% endif %}
+                <span class="media-arrow">→</span>
+            </a>
+            
+            <a href="{{ url_for('movies_index') }}" class="media-card">
+                <div class="media-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18,4L20,8H17L15,4H13L15,8H12L10,4H8L10,8H7L5,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.1,4 20,4H18Z"/>
+                    </svg>
+                </div>
+                <h2>Movies</h2>
+                <p>Browse and download movies</p>
+                {% if movies_stats.total_items > 0 %}
+                <div class="media-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">{{ movies_stats.categories }}</span>
+                        <span class="stat-label">Categories</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{ movies_stats.total_items }}</span>
+                        <span class="stat-label">Movies</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="media-stats no-data">
+                    <span class="no-data-text">No cached data</span>
+                </div>
+                {% endif %}
+                <span class="media-arrow">→</span>
+            </a>
+        </div>
+        
+        <div class="search-section">
+            <h3>Quick Search</h3>
+            <a href="{{ url_for('search') }}" class="button primary">Search</a>
+        </div>
+        
+        {% if series_stats.last_cached or movies_stats.last_cached %}
+        <div class="cache-status-section">
+            <h4>Cache Status</h4>
+            <div class="cache-status-grid">
+                {% if series_stats.last_cached %}
+                <div class="cache-status-item">
+                    <span class="cache-type">TV Series</span>
+                    <span class="cache-date" data-date="{{ series_stats.last_cached }}">{{ series_stats.last_cached }}</span>
+                </div>
+                {% endif %}
+                {% if movies_stats.last_cached %}
+                <div class="cache-status-item">
+                    <span class="cache-type">Movies</span>
+                    <span class="cache-date" data-date="{{ movies_stats.last_cached }}">{{ movies_stats.last_cached }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Format cache dates
+        document.addEventListener('DOMContentLoaded', function() {
+            const cacheDates = document.querySelectorAll('.cache-date');
+            cacheDates.forEach(dateSpan => {
+                const isoDate = dateSpan.getAttribute('data-date');
+                if (isoDate) {
+                    const date = new Date(isoDate);
+                    if (!isNaN(date.getTime())) {
+                        dateSpan.textContent = `Last cached: ${date.toLocaleString()}`;
+                    }
+                }
+            });
+        });
+    </script>
+{% endblock %}

@@ -2,7 +2,7 @@
 
 {% block content %}
     <div class="container">
-        <a href="{{ url_for('series_index') }}" class="button">← Return to Series Categories</a>
+        <a href="{{ url_for('movies_index') }}" class="button">← Return to Movie Categories</a>
         <h1 class="page-title">{{ category_name }}</h1>
         
         <div class="page-info">
@@ -24,18 +24,28 @@
         </div>
 
         <div class="series-grid">
-            {% for series in series_list %}
+            {% for movie in movies_list %}
             <div class="series-card">
                 <div class="series-image">
-                    <img src="{{ series.cover }}" alt="{{ series.name }}" loading="lazy">
+                    <img src="{{ movie.stream_icon }}" alt="{{ movie.name }}" loading="lazy">
                 </div>
                 <div class="series-content">
-                    <h2 class="series-title">{{ series.name }}</h2>
-                    <p class="series-plot">{{ series.plot|truncate(100) }}</p>
-                    <form action="{{ url_for('download') }}" method="POST">
-                        <input type="hidden" name="series_id" value="{{ series.series_id }}">
+                    <h2 class="series-title">{{ movie.name }}</h2>
+                    <div class="movie-details">
+                        {% if movie.rating %}
+                        <p class="movie-rating">Rating: {{ movie.rating }}</p>
+                        {% endif %}
+                        {% if movie.year %}
+                        <p class="movie-year">Year: {{ movie.year }}</p>
+                        {% endif %}
+                        {% if movie.genre %}
+                        <p class="movie-genre">Genre: {{ movie.genre }}</p>
+                        {% endif %}
+                    </div>
+                    <form action="{{ url_for('movie_download') }}" method="POST">
+                        <input type="hidden" name="vod_id" value="{{ movie.stream_id }}">
                         <input type="hidden" name="referrer" value="category">
-                        <button type="submit" class="button primary">View Episodes</button>
+                        <button type="submit" class="button primary">View Details / Download</button>
                     </form>
                 </div>
             </div>
@@ -45,16 +55,16 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if current_page > 1 %}
-            <a href="{{ url_for('series', category_id=category_id, page=current_page-1, per_page=per_page) }}" class="button">Previous</a>
+            <a href="{{ url_for('movies', category_id=category_id, page=current_page-1, per_page=per_page) }}" class="button">Previous</a>
             {% endif %}
             
             {% for p in range(1, total_pages + 1) %}
-            <a href="{{ url_for('series', category_id=category_id, page=p, per_page=per_page) }}" 
+            <a href="{{ url_for('movies', category_id=category_id, page=p, per_page=per_page) }}" 
                class="button {% if p == current_page %}active{% endif %}">{{ p }}</a>
             {% endfor %}
             
             {% if current_page < total_pages %}
-            <a href="{{ url_for('series', category_id=category_id, page=current_page+1, per_page=per_page) }}" class="button">Next</a>
+            <a href="{{ url_for('movies', category_id=category_id, page=current_page+1, per_page=per_page) }}" class="button">Next</a>
             {% endif %}
         </div>
         {% endif %}

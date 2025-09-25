@@ -2,10 +2,15 @@
 
 {% block content %}
     <div class="container">
-        <a href="{{ url_for('series_index') }}" class="button">← Return to Series Categories</a>
-        <h1 class="page-title">{{ category_name }}</h1>
-        
+        <a href="{{ url_for('main') }}" class="button">← Back to Main</a>
+        <div class="search-container">
+            <a href="{{ url_for('search') }}" class="button primary" target="_blank">
+                Search
+            </a>
+        </div>
+        <h1>Movie Categories</h1>
         <div class="page-info">
+            <p>Total Categories: {{ total_categories }}</p>
             <div class="per-page-selector">
                 <label for="perPageSelect">Items per page:</label>
                 <select id="perPageSelect" onchange="changePerPage(this.value)">
@@ -22,39 +27,31 @@
                 </select>
             </div>
         </div>
-
-        <div class="series-grid">
-            {% for series in series_list %}
-            <div class="series-card">
-                <div class="series-image">
-                    <img src="{{ series.cover }}" alt="{{ series.name }}" loading="lazy">
+        <div class="category-grid">
+            {% for category in categories %}
+            <a href="{{ url_for('movies', category_id=category.category_id) }}" class="category-card">
+                <div class="category-content">
+                    <h2>{{ category.category_name }}</h2>
+                    <p>Movies: {{ category_counts.get(category.category_id, 'NA') }}</p>
+                    <span class="view-series">View Movies →</span>
                 </div>
-                <div class="series-content">
-                    <h2 class="series-title">{{ series.name }}</h2>
-                    <p class="series-plot">{{ series.plot|truncate(100) }}</p>
-                    <form action="{{ url_for('download') }}" method="POST">
-                        <input type="hidden" name="series_id" value="{{ series.series_id }}">
-                        <input type="hidden" name="referrer" value="category">
-                        <button type="submit" class="button primary">View Episodes</button>
-                    </form>
-                </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
 
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if current_page > 1 %}
-            <a href="{{ url_for('series', category_id=category_id, page=current_page-1, per_page=per_page) }}" class="button">Previous</a>
+            <a href="{{ url_for('movies_index', page=current_page-1, per_page=per_page) }}" class="button">Previous</a>
             {% endif %}
             
             {% for p in range(1, total_pages + 1) %}
-            <a href="{{ url_for('series', category_id=category_id, page=p, per_page=per_page) }}" 
+            <a href="{{ url_for('movies_index', page=p, per_page=per_page) }}" 
                class="button {% if p == current_page %}active{% endif %}">{{ p }}</a>
             {% endfor %}
             
             {% if current_page < total_pages %}
-            <a href="{{ url_for('series', category_id=category_id, page=current_page+1, per_page=per_page) }}" class="button">Next</a>
+            <a href="{{ url_for('movies_index', page=current_page+1, per_page=per_page) }}" class="button">Next</a>
             {% endif %}
         </div>
         {% endif %}

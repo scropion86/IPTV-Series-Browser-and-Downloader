@@ -1,49 +1,112 @@
 {% extends "base.html" %}
 
-{% block title %}Search Series{% endblock %}
+{% block title %}Search{% endblock %}
 
 {% block content %}
 <div class="container">
-    <h1 class="page-title">Search Series</h1>
+    <a href="{{ url_for('main') }}" class="button">← Back to Main</a>
+    <h1 class="page-title">Search</h1>
 
     <form action="{{ url_for('search') }}" method="GET" class="search-form">
         <div class="search-input-group">
-            <input type="text" class="search-input" placeholder="Search by series name, actor, or plot..." name="query" value="{{ query if query else '' }}">
-            <button class="search-button" type="submit">Search</button>
+            <input type="text" class="search-input" placeholder="Search by name, actor, plot, or genre..." name="query"
+                value="{{ query if query else '' }}">
+            <button class="button primary" type="submit">Search</button>
+        </div>
+        <div class="content-type-selector">
+            <label>Search in:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="content_type" value="all" {% if not content_type or content_type=='all'
+                        %}checked{% endif %}>
+                    <span>All Content</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="content_type" value="series" {% if content_type=='series' %}checked{%
+                        endif %}>
+                    <span>TV Series</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="content_type" value="movies" {% if content_type=='movies' %}checked{%
+                        endif %}>
+                    <span>Movies</span>
+                </label>
+            </div>
         </div>
     </form>
 
-    {% if last_fetch_date %}
-    <p class="cache-info">Last cached: <span id="lastFetchDate">{{ last_fetch_date }}</span></p>
-    {% else %}
-    <p class="cache-info">No cached data found. Please run the caching process.</p>
-    {% endif %}
+    <div class="cache-info-section">
+        {% if series_last_fetch_date %}
+        <p class="cache-info">Series last cached: <span class="lastFetchDate">{{ series_last_fetch_date }}</span></p>
+        {% endif %}
+        {% if movies_last_fetch_date %}
+        <p class="cache-info">Movies last cached: <span class="lastFetchDate">{{ movies_last_fetch_date }}</span></p>
+        {% endif %}
+        {% if not series_last_fetch_date and not movies_last_fetch_date %}
+        <p class="cache-info">No cached data found. Please run the caching process.</p>
+        {% endif %}
+    </div>
 
     {% if query and results %}
-    <h2 class="results-title">Search Results for "{{ query }}"</h2>
+    <h2 class="results-title">Search Results for "{{ query }}" ({{ results|length }} found)</h2>
     <div class="results-grid">
-        {% for series in results %}
-            <div class="series-card">
-                <div class="series-header">
-                    <h3 class="series-title">{{ series.series_name }}</h3>
-                    <span class="series-category">Category: {{ series.category_ID }}</span>
-                </div>
-                <div class="series-image">
-                    <img src="{{ series.cover_url }}" alt="{{ series.series_name }}" loading="lazy" class="card-img">
-                </div>
-                <div class="series-info">
-                    <h4>Actors:</h4>
-                    <p>{{ series.actors | join(', ') if series.actors else 'N/A' }}</p>
-                </div>
-                <div class="series-info">
-                    <h4>Plot:</h4>
-                    <p>{{ series.plot if series.plot else 'No plot available.' }}</p>
-                </div>
-                <form action="{{ url_for('download') }}" method="POST" target="_blank">
-                    <input type="hidden" name="series_id" value="{{ series.series_id }}">
-                    <button type="submit" class="search-button">View Details / Download</button>
-                </form>
+        {% for item in results %}
+        <div class="series-card">
+            <div class="series-header">
+                {% if item.content_type == 'series' %}
+                <h3 class="series-title">{{ item.series_name }}</h3>
+                <span class="content-type-badge series-badge">TV Series</span>
+                {% else %}
+                <h3 class="series-title">{{ item.movie_name }}</h3>
+                <span class="content-type-badge movie-badge">Movie</span>
+                {% endif %}
+                <span class="series-category">Category: {{ item.category_ID }}</span>
             </div>
+            <div class="series-image">
+                {% if item.content_type == 'series' %}
+                <img src="{{ item.cover_url }}" alt="{{ item.series_name }}" loading="lazy">
+                {% else %}
+                <img src="{{ item.cover_url }}" alt="{{ item.movie_name }}" loading="lazy">
+                {% endif %}
+            </div>
+            <div class="series-info">
+                <h4>Actors:</h4>
+                <p>{{ item.actors | join(', ') if item.actors else 'N/A' }}</p>
+            </div>
+            {% if item.content_type == 'movie' and item.genre %}
+            <div class="series-info">
+                <h4>Genre:</h4>
+                <p>{{ item.genre }}</p>
+            </div>
+            {% endif %}
+            {% if item.content_type == 'movie' and item.year %}
+            <div class="series-info">
+                <h4>Year:</h4>
+                <p>{{ item.year }}</p>
+            </div>
+            {% endif %}
+            <div class="series-info">
+                <h4>Plot:</h4>
+                <p>{{ item.plot if item.plot else 'No plot available.' }}</p>
+            </div>
+            {% if item.content_type == 'series' %}
+            <form action="{{ url_for('download') }}" method="POST" target="_blank">
+                <input type="hidden" name="series_id" value="{{ item.series_id }}">
+                <input type="hidden" name="referrer" value="search">
+                <input type="hidden" name="search_query" value="{{ query if query else '' }}">
+                <input type="hidden" name="content_type" value="{{ content_type if content_type else 'all' }}">
+                <button type="submit" class="button primary">View Episodes</button>
+            </form>
+            {% else %}
+            <form action="{{ url_for('movie_download') }}" method="POST" target="_blank">
+                <input type="hidden" name="vod_id" value="{{ item.movie_id }}">
+                <input type="hidden" name="referrer" value="search">
+                <input type="hidden" name="search_query" value="{{ query if query else '' }}">
+                <input type="hidden" name="content_type" value="{{ content_type if content_type else 'all' }}">
+                <button type="submit" class="button primary">View Movie</button>
+            </form>
+            {% endif %}
+        </div>
         {% endfor %}
     </div>
     {% elif query and not results %}
@@ -51,112 +114,273 @@
     {% endif %}
 
     <h2 class="mt-4">Caching Management</h2>
-    <p>To update the cached data, click the button below. This might take some time.</p>
-    <button id="cacheButton" class="search-button">Process and Cache Data</button>
-    <div id="cacheStatus" class="mt-2"></div>
-    <div id="progressContainer" class="progress-container" style="display: none;">
-        <div id="progressBar" class="progress-bar"></div>
-        <span id="progressText">0%</span>
+    <p>Select what content to cache and click the button below. This might take some time.</p>
+
+    <div class="cache-type-selector">
+        <label>Cache content type:</label>
+        <div class="checkbox-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="cacheSeries" checked>
+                <span>TV Series</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="cacheMovies" checked>
+                <span>Movies</span>
+            </label>
+        </div>
     </div>
 
-<script>
-    // Function to format ISO date string to readable date and time
-    function formatISODate(isoString) {
-        const date = new Date(isoString); // Parse ISO 8601 string directly
-        if (isNaN(date.getTime())) { // Check for invalid date
-            return "Invalid Date";
+    <button id="cacheButton" class="button primary">Process and Cache Data</button>
+    <div id="cacheStatus" class="mt-2"></div>
+
+    <!-- Enhanced Caching Progress Display -->
+    <div id="cachingProgress" class="caching-progress" style="display: none;">
+        <h3>Caching Progress</h3>
+
+        <!-- Overall Progress -->
+        <div class="cache-overall-progress">
+            <h4>Overall Progress</h4>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="cache-progress-fill"></div>
+                </div>
+                <div class="progress-text cache-progress-text">0%</div>
+            </div>
+            <div class="cache-overall-stats">
+                <span class="cache-categories">Categories: 0 / 0</span>
+                <span class="cache-elapsed">Elapsed: 00:00</span>
+                <span class="cache-eta">ETA: --:--</span>
+            </div>
+        </div>
+
+        <!-- Current Activity -->
+        <div class="cache-current-activity">
+            <h4>Current Activity</h4>
+            <div class="current-category">Processing: Ready to start...</div>
+            <div class="cache-details">
+                <div class="cache-detail-row">
+                    <span class="cache-detail-label">Series Processed:</span>
+                    <span class="cache-series-count">0</span>
+                </div>
+                <div class="cache-detail-row">
+                    <span class="cache-detail-label">Failed Series:</span>
+                    <span class="cache-failed-count">0</span>
+                </div>
+                <div class="cache-detail-row">
+                    <span class="cache-detail-label">Processing Rate:</span>
+                    <span class="cache-processing-rate">0 categories/min</span>
+                </div>
+                <div class="cache-detail-row">
+                    <span class="cache-detail-label">Series Rate:</span>
+                    <span class="cache-series-rate">0 series/min</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div class="cache-status-messages">
+            <div class="cache-status-text">Initializing...</div>
+            <div class="cache-completion-stats" style="display: none;">
+                <div class="cache-stats-summary">
+                    <span class="cache-total-processed">0 series processed</span>
+                    <span class="cache-total-failed">0 failed</span>
+                    <span class="cache-total-time">in 00:00</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to format ISO date string to readable date and time
+        function formatISODate(isoString) {
+            const date = new Date(isoString); // Parse ISO 8601 string directly
+            if (isNaN(date.getTime())) { // Check for invalid date
+                return "Invalid Date";
+            }
+            return date.toLocaleString(); // Adjusts to local date and time format
         }
-        return date.toLocaleString(); // Adjusts to local date and time format
-    }
 
-    // Apply formatting if last_fetch_date exists
-    const lastFetchDateSpan = document.getElementById('lastFetchDate');
-    if (lastFetchDateSpan && lastFetchDateSpan.textContent) {
-        const isoDateString = lastFetchDateSpan.textContent;
-        lastFetchDateSpan.textContent = formatISODate(isoDateString);
-    }
-
-    document.getElementById('cacheButton').addEventListener('click', function() {
-        const statusDiv = document.getElementById('cacheStatus');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
-        
-        // Disable button during processing
-        this.disabled = true;
-        
-        // Show progress container
-        progressContainer.style.display = 'block';
-        progressBar.style.width = '0%';
-        progressText.textContent = '0%';
-        
-        // Create EventSource connection for progress updates
-        const eventSource = new EventSource('/cache_progress');
-        
-        eventSource.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            if (data.progress) {
-                const percent = Math.round(data.progress);
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
+        // Apply formatting to all date spans
+        const lastFetchDateSpans = document.querySelectorAll('.lastFetchDate');
+        lastFetchDateSpans.forEach(span => {
+            if (span && span.textContent) {
+                const isoDateString = span.textContent;
+                span.textContent = formatISODate(isoDateString);
             }
-            if (data.status === 'complete') {
-                statusDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
-                eventSource.close();
-                setTimeout(() => location.reload(), 2000);
-            } else if (data.status === 'error') {
-                statusDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+        });
+
+        document.getElementById('cacheButton').addEventListener('click', function () {
+            const statusDiv = document.getElementById('cacheStatus');
+            const cachingProgress = document.getElementById('cachingProgress');
+
+            // Get all progress elements
+            const cacheProgressBar = cachingProgress.querySelector('.cache-progress-fill');
+            const cacheProgressText = cachingProgress.querySelector('.cache-progress-text');
+            const cacheCategories = cachingProgress.querySelector('.cache-categories');
+            const cacheElapsed = cachingProgress.querySelector('.cache-elapsed');
+            const cacheEta = cachingProgress.querySelector('.cache-eta');
+            const currentCategory = cachingProgress.querySelector('.current-category');
+            const cacheSeriesCount = cachingProgress.querySelector('.cache-series-count');
+            const cacheFailedCount = cachingProgress.querySelector('.cache-failed-count');
+            const cacheProcessingRate = cachingProgress.querySelector('.cache-processing-rate');
+            const cacheSeriesRate = cachingProgress.querySelector('.cache-series-rate');
+            const cacheStatusText = cachingProgress.querySelector('.cache-status-text');
+            const cacheCompletionStats = cachingProgress.querySelector('.cache-completion-stats');
+            const cacheTotalProcessed = cachingProgress.querySelector('.cache-total-processed');
+            const cacheTotalFailed = cachingProgress.querySelector('.cache-total-failed');
+            const cacheTotalTime = cachingProgress.querySelector('.cache-total-time');
+
+            // Disable button during processing
+            this.disabled = true;
+
+            // Show enhanced progress container
+            cachingProgress.style.display = 'block';
+            cacheProgressBar.style.width = '0%';
+            cacheProgressText.textContent = '0%';
+
+            // Create EventSource connection for progress updates
+            const eventSource = new EventSource('/cache_progress');
+
+            eventSource.onmessage = function (e) {
+                const data = JSON.parse(e.data);
+                console.log('Cache progress update:', data);  // Debug log
+
+                // Handle different status types
+                switch (data.status) {
+                    case 'starting':
+                        cacheStatusText.innerHTML = `<span class="info">${data.message}</span>`;
+                        currentCategory.textContent = 'Initializing...';
+                        break;
+
+                    case 'in_progress':
+                        // Update overall progress
+                        if (data.progress !== undefined) {
+                            const percent = Math.round(data.progress);
+                            cacheProgressBar.style.width = percent + '%';
+                            cacheProgressText.textContent = percent + '%';
+                        }
+
+                        // Update category progress
+                        if (data.total_categories && data.processed_categories !== undefined) {
+                            cacheCategories.textContent = `Categories: ${data.processed_categories} / ${data.total_categories}`;
+                        }
+
+                        // Update current activity
+                        if (data.current_category) {
+                            currentCategory.textContent = `Processing: ${data.current_category}`;
+                            if (data.category_series_count !== undefined) {
+                                currentCategory.textContent += ` (${data.category_series_count} series)`;
+                            }
+                        }
+
+                        // Update series counts
+                        if (data.processed_series !== undefined) {
+                            cacheSeriesCount.textContent = data.processed_series.toString();
+                        }
+                        if (data.failed_series !== undefined) {
+                            cacheFailedCount.textContent = data.failed_series.toString();
+                        }
+
+                        // Update time information
+                        if (data.formatted_elapsed) {
+                            cacheElapsed.textContent = `Elapsed: ${data.formatted_elapsed}`;
+                        }
+                        if (data.formatted_eta) {
+                            cacheEta.textContent = `ETA: ${data.formatted_eta}`;
+                        }
+
+                        // Update processing rates
+                        if (data.categories_per_minute !== undefined) {
+                            cacheProcessingRate.textContent = `${data.categories_per_minute} categories/min`;
+                        }
+                        if (data.series_per_minute !== undefined) {
+                            cacheSeriesRate.textContent = `${data.series_per_minute} series/min`;
+                        }
+
+                        // Update status message
+                        cacheStatusText.innerHTML = `<span class="info">${data.message}</span>`;
+                        break;
+
+                    case 'complete':
+                        // Final progress update
+                        cacheProgressBar.style.width = '100%';
+                        cacheProgressText.textContent = '100%';
+
+                        // Show completion message
+                        statusDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                        cacheStatusText.innerHTML = `<span class="success">${data.message}</span>`;
+                        currentCategory.textContent = 'Caching completed successfully!';
+
+                        // Hide ETA since we're done
+                        cacheEta.textContent = 'Completed';
+
+                        // Show final statistics
+                        if (data.processed_series !== undefined && data.failed_series !== undefined) {
+                            cacheTotalProcessed.textContent = `${data.processed_series} series processed`;
+                            cacheTotalFailed.textContent = `${data.failed_series} failed`;
+                            if (data.formatted_elapsed) {
+                                cacheTotalTime.textContent = `in ${data.formatted_elapsed}`;
+                            }
+                            cacheCompletionStats.style.display = 'block';
+                        }
+
+                        // Re-enable the cache button and change its text
+                        const cacheButton = document.getElementById('cacheButton');
+                        cacheButton.disabled = false;
+                        cacheButton.textContent = 'Process and Cache Data Again';
+
+                        // Add a refresh button to update the page with new cached data
+                        const refreshButton = document.createElement('button');
+                        refreshButton.className = 'button primary';
+                        refreshButton.textContent = 'Refresh Page to See Updated Data';
+                        refreshButton.style.marginLeft = '10px';
+                        refreshButton.onclick = () => location.reload();
+                        cacheButton.parentNode.insertBefore(refreshButton, cacheButton.nextSibling);
+
+                        eventSource.close();
+                        // Removed automatic reload - user can now manually refresh when ready
+                        break;
+
+                    case 'error':
+                        statusDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+                        cacheStatusText.innerHTML = `<span class="error">${data.message}</span>`;
+                        eventSource.close();
+                        document.getElementById('cacheButton').disabled = false;
+                        break;
+                }
+            };
+
+            eventSource.onerror = function () {
+                statusDiv.innerHTML = '<div class="alert alert-danger">Connection error during caching</div>';
+                cacheStatusText.innerHTML = '<span class="error">Connection lost during caching</span>';
                 eventSource.close();
                 document.getElementById('cacheButton').disabled = false;
+            };
+
+            // Determine cache type based on checkboxes
+            const cacheSeries = document.getElementById('cacheSeries').checked;
+            const cacheMovies = document.getElementById('cacheMovies').checked;
+
+            let cacheType = 'both';
+            if (cacheSeries && !cacheMovies) {
+                cacheType = 'series';
+            } else if (!cacheSeries && cacheMovies) {
+                cacheType = 'movies';
+            } else if (!cacheSeries && !cacheMovies) {
+                alert('Please select at least one content type to cache.');
+                this.disabled = false;
+                return;
             }
-        };
-        
-        eventSource.onerror = function() {
-            statusDiv.innerHTML = '<div class="alert alert-danger">Connection error during caching</div>';
-            eventSource.close();
-            document.getElementById('cacheButton').disabled = false;
-        };
-        
-        // Start the caching process
-        fetch('/cache_data')
-            .catch(error => {
-                console.error('Error:', error);
-                statusDiv.innerHTML = '<div class="alert alert-danger">Failed to start caching process</div>';
-                document.getElementById('cacheButton').disabled = false;
-            });
-    });
-</script>
 
-<style>
-    .results-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 20px;
-    }
+            // Start the caching process
+            fetch(`/cache_data?cache_type=${cacheType}`)
+                .catch(error => {
+                    console.error('Error:', error);
+                    statusDiv.innerHTML = '<div class="alert alert-danger">Failed to start caching process</div>';
+                    document.getElementById('cacheButton').disabled = false;
+                });
+        });
+    </script>
 
-    .series-card {
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-        width: 300px; /* Fixed width for consistency */
-    }
 
-    .series-image {
-        height: 200px; /* Fixed height for consistency */
-        overflow: hidden;
-    }
-
-    .card-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .series-header,
-    .series-info,
-    form {
-        padding: 15px;
-    }
-</style>
-{% endblock %}
+    {% endblock %}
