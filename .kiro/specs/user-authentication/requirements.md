@@ -8,7 +8,7 @@ This feature implements a comprehensive user authentication and configuration ma
 
 ### Requirement 1
 
-**User Story:** As a new user, I want to be prompted to enter my server details and credentials when I first launch the app, so that I can connect to my IPTV service.
+**User Story:** As a new user, I want to be prompted to enter my server details and credentials when I first launch the app, so that I can connect to my IPTV service if the config.py was not found or  populated
 
 #### Acceptance Criteria
 
@@ -25,10 +25,10 @@ This feature implements a comprehensive user authentication and configuration ma
 #### Acceptance Criteria
 
 1. WHEN the user successfully connects THEN the system SHALL call the player API endpoint: `{{server}}/player_api.php?username={{username}}&password={{password}}`
-2. WHEN the API call succeeds THEN the system SHALL parse and store the user information response
-3. WHEN user information is available THEN the system SHALL display it in a user info section
-4. IF the API call fails THEN the system SHALL display an appropriate error message
-5. WHEN user information is displayed THEN it SHALL include relevant account details from the API response
+2. WHEN the API call succeeds THEN the system SHALL parse and store both user_info and server_info from the response into config.py
+3. WHEN user information is available THEN the system SHALL display account status, expiry date, connection limits, and allowed formats
+4. IF the API call fails OR auth field is not 1 THEN the system SHALL display an appropriate error message
+5. WHEN user information is displayed THEN it SHALL include status, expiry date, max connections, active connections, and trial status
 
 ### Requirement 3
 
@@ -36,7 +36,7 @@ This feature implements a comprehensive user authentication and configuration ma
 
 #### Acceptance Criteria
 
-1. WHEN the user clicks logout THEN the system SHALL clear all stored configuration data
+1. WHEN the user clicks logout THEN the system SHALL clear all stored configuration data of that user
 2. WHEN the user clicks logout THEN the system SHALL clear all cached search data for the current user
 3. WHEN logout is complete THEN the system SHALL redirect the user to the configuration setup page
 4. WHEN the user confirms logout THEN the system SHALL display a confirmation dialog before proceeding
@@ -51,21 +51,11 @@ This feature implements a comprehensive user authentication and configuration ma
 1. WHEN the user has an existing configuration THEN the system SHALL provide an option to add additional users
 2. WHEN adding a new user THEN the system SHALL display the same configuration form as initial setup
 3. WHEN multiple users exist THEN the system SHALL display a user selection interface
-4. WHEN the user switches accounts THEN the system SHALL load the selected user's configuration and cached data
-5. WHEN switching users THEN the system SHALL maintain separate search caches for each user account
-6. WHEN displaying multiple users THEN the system SHALL show identifying information (server/username) for each account
+4. WHEN switching users THEN the system SHALL maintain separate search caches for each user account
+5. WHEN displaying multiple users THEN the system SHALL show identifying information (server/username) for each account
 
-### Requirement 5
 
-**User Story:** As a user with multiple accounts, I want each account to have its own search cache, so that my searches and browsing history remain separate between accounts.
 
-#### Acceptance Criteria
-
-1. WHEN a user performs a search THEN the system SHALL store cache data associated with the current user's identifier
-2. WHEN switching between users THEN the system SHALL load only the cache data for the selected user
-3. WHEN a user is deleted THEN the system SHALL remove all associated cache data for that user
-4. WHEN clearing cache THEN the system SHALL only clear cache for the currently selected user
-5. IF cache corruption occurs THEN the system SHALL gracefully handle the error and allow cache regeneration
 
 ### Requirement 6
 

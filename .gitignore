@@ -4,5 +4,6 @@
 /series_data.json
 /cached_movies_data.json
 /series_downloader.py/
-__pycache__
+/__pycache__
 /.vscode
+iptv-browser.tar

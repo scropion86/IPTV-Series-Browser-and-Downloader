@@ -1965,3 +1965,331 @@ input[type="number"]:focus, input[type="text"]:focus {
         align-self: flex-start;
     }
 }
+/
+* User Menu Styles */
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.user-menu {
+    position: relative;
+}
+
+.user-icon {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: var(--text-color);
+}
+
+.user-icon:hover {
+    background: var(--hover-color);
+    color: white;
+}
+
+.user-icon i {
+    font-size: 14px;
+}
+
+.username {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.user-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    min-width: 180px;
+    z-index: 1000;
+    margin-top: 5px;
+}
+
+.user-dropdown a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: background-color 0.2s;
+}
+
+.user-dropdown a:hover {
+    background: var(--hover-color);
+    color: white;
+}
+
+.user-dropdown a i {
+    width: 16px;
+    font-size: 14px;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    margin: 5% auto;
+    padding: 30px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.close {
+    position: absolute;
+    right: 15px;
+    top: 15px;
+    color: var(--text-color);
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close:hover {
+    color: var(--primary-color);
+}
+
+.modal h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--text-color);
+}
+
+/* User Details Styles */
+.user-details p {
+    margin: 10px 0;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.user-details p:last-child {
+    border-bottom: none;
+}
+
+.user-details strong {
+    color: var(--primary-color);
+    margin-right: 10px;
+}
+
+/* User List Styles */
+.user-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.user-item:hover {
+    background: var(--hover-color);
+    color: white;
+}
+
+.user-item.current-user {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.user-info strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.user-info small {
+    opacity: 0.8;
+    font-size: 12px;
+}
+
+.current-badge {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Form Styles for Modals */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 16px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.form-actions button {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.form-actions button[type="submit"] {
+    background: var(--primary-color);
+    color: white;
+}
+
+.form-actions button[type="submit"]:hover {
+    background: var(--hover-color);
+}
+
+.form-actions button[type="button"] {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.form-actions button[type="button"]:hover {
+    background: var(--hover-color);
+    color: white;
+}
+
+/* Message Styles */
+.message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.message.info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+/* Dark mode adjustments for messages */
+body.dark-mode .message.success {
+    background: #1e4d2b;
+    color: #a3d9a5;
+    border-color: #2d5a3d;
+}
+
+body.dark-mode .message.error {
+    background: #4d1e24;
+    color: #d9a3a8;
+    border-color: #5a2d32;
+}
+
+body.dark-mode .message.info {
+    background: #1e3a4d;
+    color: #a3c9d9;
+    border-color: #2d4a5a;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .nav-right {
+        gap: 10px;
+    }
+    
+    .user-icon .username {
+        display: none;
+    }
+    
+    .modal-content {
+        margin: 10% auto;
+        width: 95%;
+        padding: 20px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .user-item {
+        padding: 12px;
+    }
+}
+
+/* Additional CSS variables for better theming */
+:root {
+    --text-primary: var(--text-color);
+    --text-secondary: #666;
+    --input-bg: var(--bg-color);
+    --secondary-color: var(--card-bg);
+    --primary-hover: var(--hover-color);
+}
+
+body.dark-mode {
+    --text-secondary: #aaa;
+    --input-bg: var(--card-bg);
+}

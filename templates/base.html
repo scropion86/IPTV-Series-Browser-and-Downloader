@@ -5,20 +5,93 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IPTV Browser</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <nav>
         <div class="container">
             <h1>IPTV Browser</h1>
-            <div class="dark-mode-toggle">
-                <input type="checkbox" id="dark-mode-switch">
-                <label for="dark-mode-switch">Dark Mode</label>
+            <div class="nav-right">
+                <div class="user-menu">
+                    <div class="user-icon" onclick="toggleUserMenu()">
+                        <i class="fas fa-user"></i>
+                        <span class="username" id="currentUsername">Guest</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="user-dropdown" id="userDropdown">
+                        <a href="#" onclick="showUserInfo()">
+                            <i class="fas fa-info-circle"></i> User Info
+                        </a>
+                        <a href="#" onclick="showUserSwitcher()">
+                            <i class="fas fa-users"></i> Switch User
+                        </a>
+                        <a href="#" onclick="showAddUser()">
+                            <i class="fas fa-user-plus"></i> Add User
+                        </a>
+                        <a href="/logout">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                </div>
+                <div class="dark-mode-toggle">
+                    <input type="checkbox" id="dark-mode-switch">
+                    <label for="dark-mode-switch">Dark Mode</label>
+                </div>
             </div>
         </div>
     </nav>
 
     <div class="container">
         {% block content %}{% endblock %}
+    </div>
+
+    <!-- User Info Modal -->
+    <div id="userInfoModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('userInfoModal')">&times;</span>
+            <h2>User Information</h2>
+            <div id="userInfoContent">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Switcher Modal -->
+    <div id="userSwitcherModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('userSwitcherModal')">&times;</span>
+            <h2>Switch User</h2>
+            <div id="userSwitcherContent">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addUserModal')">&times;</span>
+            <h2>Add New User</h2>
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label for="newServer">Server URL:</label>
+                    <input type="text" id="newServer" name="server" placeholder="http://example.com:8080" required>
+                </div>
+                <div class="form-group">
+                    <label for="newUsername">Username:</label>
+                    <input type="text" id="newUsername" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">Password:</label>
+                    <input type="password" id="newPassword" name="password" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" onclick="testNewConnection()">Test Connection</button>
+                    <button type="submit">Add User</button>
+                </div>
+                <div id="addUserMessage" class="message"></div>
+            </form>
+        </div>
     </div>
 
     <script>
@@ -49,7 +122,222 @@
                     localStorage.setItem('theme', 'light-mode');
                 }
             });
+
+            // Load current user info
+            loadCurrentUser();
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.user-menu')) {
+                    document.getElementById('userDropdown').style.display = 'none';
+                }
+            });
         });
+
+        // User menu functions
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function loadCurrentUser() {
+            fetch('/user_info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('currentUsername').textContent = data.user.username;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading user info:', error);
+                });
+        }
+
+        function showUserInfo() {
+            document.getElementById('userDropdown').style.display = 'none';
+            
+            fetch('/user_info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const user = data.user;
+                        const userInfo = user.user_info;
+                        
+                        let content = `
+                            <div class="user-details">
+                                <p><strong>Username:</strong> ${user.username}</p>
+                                <p><strong>Server:</strong> ${user.server}</p>
+                                <p><strong>Status:</strong> ${userInfo.status || 'Unknown'}</p>
+                                <p><strong>Max Connections:</strong> ${userInfo.max_connections || 'Unknown'}</p>
+                                <p><strong>Active Connections:</strong> ${userInfo.active_cons || '0'}</p>
+                                <p><strong>Trial Account:</strong> ${userInfo.is_trial === '1' ? 'Yes' : 'No'}</p>
+                        `;
+                        
+                        if (userInfo.exp_date) {
+                            const expDate = new Date(parseInt(userInfo.exp_date) * 1000);
+                            content += `<p><strong>Expires:</strong> ${expDate.toLocaleDateString()}</p>`;
+                        }
+                        
+                        content += '</div>';
+                        document.getElementById('userInfoContent').innerHTML = content;
+                    } else {
+                        document.getElementById('userInfoContent').innerHTML = '<p class="error">Failed to load user information</p>';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('userInfoContent').innerHTML = '<p class="error">Error loading user information</p>';
+                });
+            
+            document.getElementById('userInfoModal').style.display = 'block';
+        }
+
+        function showUserSwitcher() {
+            document.getElementById('userDropdown').style.display = 'none';
+            
+            fetch('/get_users')
+                .then(response => response.json())
+                .then(data => {
+                    let content = '<div class="user-list">';
+                    
+                    data.users.forEach(user => {
+                        const isCurrentClass = user.is_current ? 'current-user' : '';
+                        const currentBadge = user.is_current ? '<span class="current-badge">Current</span>' : '';
+                        
+                        content += `
+                            <div class="user-item ${isCurrentClass}" onclick="switchToUser('${user.id}')">
+                                <div class="user-info">
+                                    <strong>${user.username}</strong>
+                                    <small>${user.server}</small>
+                                </div>
+                                ${currentBadge}
+                            </div>
+                        `;
+                    });
+                    
+                    content += '</div>';
+                    document.getElementById('userSwitcherContent').innerHTML = content;
+                })
+                .catch(error => {
+                    document.getElementById('userSwitcherContent').innerHTML = '<p class="error">Error loading users</p>';
+                });
+            
+            document.getElementById('userSwitcherModal').style.display = 'block';
+        }
+
+        function switchToUser(userId) {
+            fetch('/switch_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ user_id: userId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload(); // Reload to update the interface
+                } else {
+                    alert('Failed to switch user: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error switching user');
+            });
+        }
+
+        function showAddUser() {
+            document.getElementById('userDropdown').style.display = 'none';
+            document.getElementById('addUserModal').style.display = 'block';
+        }
+
+        function testNewConnection() {
+            const server = document.getElementById('newServer').value;
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            
+            if (!server || !username || !password) {
+                document.getElementById('addUserMessage').innerHTML = '<p class="error">Please fill in all fields</p>';
+                return;
+            }
+            
+            document.getElementById('addUserMessage').innerHTML = '<p class="info">Testing connection...</p>';
+            
+            fetch('/test_connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ server, username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('addUserMessage').innerHTML = '<p class="success">Connection successful!</p>';
+                } else {
+                    document.getElementById('addUserMessage').innerHTML = `<p class="error">${data.error}</p>`;
+                }
+            })
+            .catch(error => {
+                document.getElementById('addUserMessage').innerHTML = '<p class="error">Error testing connection</p>';
+            });
+        }
+
+        // Add user form submission
+        document.getElementById('addUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {
+                server: formData.get('server'),
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+            
+            document.getElementById('addUserMessage').innerHTML = '<p class="info">Adding user...</p>';
+            
+            fetch('/add_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('addUserMessage').innerHTML = '<p class="success">User added successfully!</p>';
+                    setTimeout(() => {
+                        closeModal('addUserModal');
+                        this.reset();
+                        loadCurrentUser();
+                    }, 1500);
+                } else {
+                    document.getElementById('addUserMessage').innerHTML = `<p class="error">${data.error}</p>`;
+                }
+            })
+            .catch(error => {
+                document.getElementById('addUserMessage').innerHTML = '<p class="error">Error adding user</p>';
+            });
+        });
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            if (modalId === 'addUserModal') {
+                document.getElementById('addUserForm').reset();
+                document.getElementById('addUserMessage').innerHTML = '';
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = ['userInfoModal', 'userSwitcherModal', 'addUserModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (event.target === modal) {
+                    closeModal(modalId);
+                }
+            });
+        }
     </script>
 </body>
 </html>

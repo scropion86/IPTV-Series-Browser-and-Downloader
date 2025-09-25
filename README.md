@@ -156,6 +156,278 @@ docker save iptv-browser:latest -o iptv-browser.tar
 docker load -i iptv-browser.tar
 ```
 
+## 🐳 Docker Image Creation & Management on Windows
+
+### Prerequisites for Windows
+- **Docker Desktop**: Install Docker Desktop for Windows
+- **WSL2**: Enable Windows Subsystem for Linux 2 (recommended)
+- **PowerShell**: Use PowerShell or Command Prompt as administrator
+
+### Building Docker Image on Windows
+
+#### Method 1: Using PowerShell
+```powershell
+# Navigate to project directory
+cd C:\path\to\iptv-browser
+
+# Build the Docker image
+docker build -t iptv-browser:latest .
+
+# Verify image was created
+docker images | findstr iptv-browser
+```
+
+#### Method 2: Using Command Prompt
+```cmd
+# Navigate to project directory
+cd C:\path\to\iptv-browser
+
+# Build the Docker image
+docker build -t iptv-browser:latest .
+
+# List all images
+docker images
+```
+
+### Saving Docker Images on Windows
+
+#### Save Image to TAR File
+```powershell
+# Save to current directory
+docker save iptv-browser:latest -o iptv-browser-latest.tar
+
+# Save to specific location
+docker save iptv-browser:latest -o "C:\Docker-Images\iptv-browser-latest.tar"
+
+# Save with compression (using 7-Zip if installed)
+docker save iptv-browser:latest | 7z a -si "C:\Docker-Images\iptv-browser-latest.tar.7z"
+```
+
+#### Save Multiple Tags
+```powershell
+# Save multiple versions
+docker save iptv-browser:latest iptv-browser:v1.0 -o "C:\Docker-Images\iptv-browser-all-versions.tar"
+```
+
+### Loading Docker Images on Windows
+
+#### Load from TAR File
+```powershell
+# Load from current directory
+docker load -i iptv-browser-latest.tar
+
+# Load from specific location
+docker load -i "C:\Docker-Images\iptv-browser-latest.tar"
+
+# Verify loaded image
+docker images | findstr iptv-browser
+```
+
+### Windows-Specific Docker Commands
+
+#### Using Windows Paths in Docker
+```powershell
+# Mount Windows directories (PowerShell)
+docker run -d `
+  --name iptv-browser `
+  -p 5000:5000 `
+  -v "C:\IPTV-Downloads:/app/downloads" `
+  -v "C:\IPTV-Config\config.py:/app/config.py" `
+  iptv-browser:latest
+
+# Using Command Prompt (escape quotes)
+docker run -d ^
+  --name iptv-browser ^
+  -p 5000:5000 ^
+  -v "C:\IPTV-Downloads:/app/downloads" ^
+  -v "C:\IPTV-Config\config.py:/app/config.py" ^
+  iptv-browser:latest
+```
+
+#### Windows Docker Desktop GUI
+1. **Open Docker Desktop**
+2. **Go to Images tab**
+3. **Click on your image**
+4. **Use "Save" button to export**
+5. **Choose destination folder**
+
+### Advanced Windows Docker Management
+
+#### Create Batch Scripts for Easy Management
+
+**build-image.bat:**
+```batch
+@echo off
+echo Building IPTV Browser Docker Image...
+cd /d "%~dp0"
+docker build -t iptv-browser:latest .
+if %ERRORLEVEL% EQU 0 (
+    echo Build completed successfully!
+    docker images | findstr iptv-browser
+) else (
+    echo Build failed!
+)
+pause
+```
+
+**save-image.bat:**
+```batch
+@echo off
+set IMAGE_NAME=iptv-browser:latest
+set SAVE_PATH=C:\Docker-Images
+set FILENAME=iptv-browser-%date:~-4,4%%date:~-10,2%%date:~-7,2%.tar
+
+echo Saving Docker image %IMAGE_NAME%...
+if not exist "%SAVE_PATH%" mkdir "%SAVE_PATH%"
+docker save %IMAGE_NAME% -o "%SAVE_PATH%\%FILENAME%"
+
+if %ERRORLEVEL% EQU 0 (
+    echo Image saved successfully to: %SAVE_PATH%\%FILENAME%
+    dir "%SAVE_PATH%\%FILENAME%"
+) else (
+    echo Failed to save image!
+)
+pause
+```
+
+**load-image.bat:**
+```batch
+@echo off
+set /p IMAGE_PATH="Enter full path to TAR file: "
+echo Loading Docker image from %IMAGE_PATH%...
+docker load -i "%IMAGE_PATH%"
+
+if %ERRORLEVEL% EQU 0 (
+    echo Image loaded successfully!
+    docker images
+) else (
+    echo Failed to load image!
+)
+pause
+```
+
+#### PowerShell Scripts for Advanced Users
+
+**Build-IPTVImage.ps1:**
+```powershell
+param(
+    [string]$Tag = "latest",
+    [string]$ImageName = "iptv-browser"
+)
+
+Write-Host "Building Docker image: $ImageName:$Tag" -ForegroundColor Green
+
+try {
+    docker build -t "$ImageName:$Tag" .
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ Build completed successfully!" -ForegroundColor Green
+        docker images | Select-String $ImageName
+    } else {
+        Write-Host "❌ Build failed!" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "❌ Error: $($_.Exception.Message)" -ForegroundColor Red
+}
+```
+
+**Save-IPTVImage.ps1:**
+```powershell
+param(
+    [string]$ImageName = "iptv-browser:latest",
+    [string]$SavePath = "C:\Docker-Images",
+    [switch]$Compress
+)
+
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$filename = "iptv-browser-$timestamp.tar"
+$fullPath = Join-Path $SavePath $filename
+
+# Create directory if it doesn't exist
+if (!(Test-Path $SavePath)) {
+    New-Item -ItemType Directory -Path $SavePath -Force
+    Write-Host "Created directory: $SavePath" -ForegroundColor Yellow
+}
+
+Write-Host "Saving Docker image: $ImageName" -ForegroundColor Green
+Write-Host "Destination: $fullPath" -ForegroundColor Cyan
+
+try {
+    docker save $ImageName -o $fullPath
+    
+    if ($LASTEXITCODE -eq 0) {
+        $fileInfo = Get-Item $fullPath
+        Write-Host "✅ Image saved successfully!" -ForegroundColor Green
+        Write-Host "File size: $([math]::Round($fileInfo.Length / 1MB, 2)) MB" -ForegroundColor Cyan
+        
+        if ($Compress) {
+            Write-Host "Compressing with 7-Zip..." -ForegroundColor Yellow
+            & 7z a "$fullPath.7z" $fullPath
+            Remove-Item $fullPath
+            Write-Host "✅ Compressed file created: $fullPath.7z" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "❌ Failed to save image!" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "❌ Error: $($_.Exception.Message)" -ForegroundColor Red
+}
+```
+
+### Windows Docker Troubleshooting
+
+#### Common Windows Issues
+
+**1. Path Issues:**
+```powershell
+# Use forward slashes or escape backslashes
+docker run -v "C:/IPTV-Downloads:/app/downloads" iptv-browser:latest
+# OR
+docker run -v "C:\\IPTV-Downloads:/app/downloads" iptv-browser:latest
+```
+
+**2. Permission Issues:**
+```powershell
+# Run PowerShell as Administrator
+# Enable Docker Desktop integration with WSL2
+# Check Docker Desktop settings
+```
+
+**3. WSL2 Integration:**
+```powershell
+# Enable WSL2 in Docker Desktop settings
+# Restart Docker Desktop
+# Verify WSL2 backend is active
+docker version
+```
+
+#### Windows Performance Tips
+
+**1. Use WSL2 Backend:**
+- Better performance than Hyper-V
+- Native Linux compatibility
+- Faster file system operations
+
+**2. Optimize Docker Desktop:**
+```json
+// Docker Desktop settings
+{
+  "memoryMiB": 4096,
+  "cpus": 4,
+  "swapMiB": 1024,
+  "diskSizeMiB": 61440
+}
+```
+
+**3. Use Windows Container Mode (if needed):**
+```powershell
+# Switch to Windows containers (for Windows-specific apps)
+& "C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchWindowsEngine
+
+# Switch back to Linux containers
+& "C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+```
+
 ### Method 3: Docker Compose (Easiest)
 
 #### Quick Start

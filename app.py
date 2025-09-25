@@ -17,6 +17,7 @@ from cache_manager import (
     search_series, search_movies, search_all_content,
     get_cached_data, get_series_count_by_category, get_movies_count_by_category
 )
+import config
 from config import BASE_URL, USERNAME, PASSWORD
 
 # Configure logging
@@ -33,6 +34,11 @@ def tojsonfilter(obj):
     return json.dumps(obj)
 
 app.jinja_env.filters['tojsonfilter'] = tojsonfilter
+
+# Context processor to make current user available in all templates
+@app.context_processor
+def inject_user():
+    return dict(current_user=get_current_user())
 
 
 DOWNLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
@@ -59,12 +65,187 @@ session.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 })
 
+# Authentication helper functions
+def get_current_user():
+    """Get current user configuration."""
+    if config.CURRENT_USER and config.CURRENT_USER in config.USERS:
+        return config.USERS[config.CURRENT_USER]
+    return None
+
+def is_user_authenticated():
+    """Check if current user is authenticated."""
+    user = get_current_user()
+    return user and user.get('user_info', {}).get('auth') == 1
+
+def test_connection(server, username, password):
+    """Test API connectivity and return user info."""
+    try:
+        # Ensure server URL ends with /
+        if not server.endswith('/'):
+            server += '/'
+            
+        url = f"{server}player_api.php"
+        params = {
+            "username": username,
+            "password": password
+        }
+        
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Check if authentication was successful
+        user_info = data.get('user_info', {})
+        if user_info.get('auth') == 1:
+            return {'success': True, 'data': data}
+        else:
+            return {'success': False, 'error': 'Invalid username or password'}
+            
+    except requests.exceptions.Timeout:
+        return {'success': False, 'error': 'Connection timeout. Please check your connection.'}
+    except requests.exceptions.ConnectionError:
+        return {'success': False, 'error': 'Server is not responding. Please check the server URL.'}
+    except requests.exceptions.RequestException as e:
+        return {'success': False, 'error': f'Network error: {str(e)}'}
+    except ValueError:
+        return {'success': False, 'error': 'Invalid response from server'}
+    except Exception as e:
+        return {'success': False, 'error': f'Unexpected error: {str(e)}'}
+
+def save_user_to_config(user_id, server, username, password, user_info=None, server_info=None):
+    """Save user configuration to config.py file."""
+    try:
+        # Create new user entry
+        new_user = {
+            "id": user_id,
+            "server": server,
+            "username": username,
+            "password": password,
+            "user_info": user_info or {},
+            "server_info": server_info or {}
+        }
+        
+        # Update the USERS dictionary in memory
+        config.USERS[user_id] = new_user
+        
+        # If this is the first user or no current user is set, make it current
+        if not config.CURRENT_USER:
+            config.CURRENT_USER = user_id
+            # Update legacy variables
+            config.BASE_URL = server
+            config.USERNAME = username
+            config.PASSWORD = password
+        
+        # Write updated config back to file
+        users_str = "USERS = {\n"
+        for uid, user_data in config.USERS.items():
+            users_str += f'    "{uid}": {{\n'
+            users_str += f'        "id": "{user_data["id"]}",\n'
+            users_str += f'        "server": "{user_data["server"]}",\n'
+            users_str += f'        "username": "{user_data["username"]}",\n'
+            users_str += f'        "password": "{user_data["password"]}",\n'
+            users_str += f'        "user_info": {user_data["user_info"]},\n'
+            users_str += f'        "server_info": {user_data["server_info"]}\n'
+            users_str += '    },\n'
+        users_str += "}\n\n"
+        
+        current_user_str = f'CURRENT_USER = "{config.CURRENT_USER}"\n\n' if config.CURRENT_USER else 'CURRENT_USER = None\n\n'
+        
+        # Keep the rest of the config.py content (helper functions)
+        helper_functions = '''# Legacy support (points to current user's config)
+def get_current_config():
+    if CURRENT_USER and CURRENT_USER in USERS:
+        user = USERS[CURRENT_USER]
+        return {
+            'BASE_URL': user['server'],
+            'USERNAME': user['username'], 
+            'PASSWORD': user['password']
+        }
+    return {'BASE_URL': '', 'USERNAME': '', 'PASSWORD': ''}
+
+# For backward compatibility - these will be updated dynamically
+BASE_URL = ""
+USERNAME = ""
+PASSWORD = ""'''
+        
+        new_content = "# Multi-user configuration\n" + users_str + current_user_str + helper_functions
+        
+        with open('config.py', 'w') as f:
+            f.write(new_content)
+            
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error saving user to config: {str(e)}")
+        return False
+
+def switch_user(user_id):
+    """Switch to different user and update config.py."""
+    if user_id in config.USERS:
+        try:
+            config.CURRENT_USER = user_id
+            
+            # Update legacy variables
+            user = config.USERS[user_id]
+            config.BASE_URL = user['server']
+            config.USERNAME = user['username']
+            config.PASSWORD = user['password']
+            
+            # Update the config file
+            users_str = "USERS = {\n"
+            for uid, user_data in config.USERS.items():
+                users_str += f'    "{uid}": {{\n'
+                users_str += f'        "id": "{user_data["id"]}",\n'
+                users_str += f'        "server": "{user_data["server"]}",\n'
+                users_str += f'        "username": "{user_data["username"]}",\n'
+                users_str += f'        "password": "{user_data["password"]}",\n'
+                users_str += f'        "user_info": {user_data["user_info"]},\n'
+                users_str += f'        "server_info": {user_data["server_info"]}\n'
+                users_str += '    },\n'
+            users_str += "}\n\n"
+            
+            current_user_str = f'CURRENT_USER = "{config.CURRENT_USER}"\n\n'
+            
+            helper_functions = '''# Legacy support (points to current user's config)
+def get_current_config():
+    if CURRENT_USER and CURRENT_USER in USERS:
+        user = USERS[CURRENT_USER]
+        return {
+            'BASE_URL': user['server'],
+            'USERNAME': user['username'], 
+            'PASSWORD': user['password']
+        }
+    return {'BASE_URL': '', 'USERNAME': '', 'PASSWORD': ''}
+
+# For backward compatibility - these will be updated dynamically
+BASE_URL = ""
+USERNAME = ""
+PASSWORD = ""'''
+            
+            new_content = "# Multi-user configuration\n" + users_str + current_user_str + helper_functions
+            
+            with open('config.py', 'w') as f:
+                f.write(new_content)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error switching user: {str(e)}")
+            return False
+    return False
+
 def get_categories():
     """Fetch all series categories with improved error handling"""
-    url = f"{BASE_URL}player_api.php"
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured")
+        return []
+        
+    # Ensure server URL has trailing slash
+    server_url = user['server'].rstrip('/') + '/'
+    url = f"{server_url}player_api.php"
     params = {
-        "username": USERNAME,
-        "password": PASSWORD,
+        "username": user['username'],
+        "password": user['password'],
         "action": "get_series_categories"
     }
     
@@ -87,10 +268,17 @@ def get_categories():
 
 def get_series_by_category(category_id):
     """Fetch all series in a category"""
-    url = f"{BASE_URL}player_api.php"
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured")
+        return []
+        
+    # Ensure server URL has trailing slash
+    server_url = user['server'].rstrip('/') + '/'
+    url = f"{server_url}player_api.php"
     params = {
-        "username": USERNAME,
-        "password": PASSWORD,
+        "username": user['username'],
+        "password": user['password'],
         "action": "get_series",
         "category_id": category_id
     }
@@ -105,10 +293,17 @@ def get_series_by_category(category_id):
 
 def get_series_info(series_id):
     """Fetch series information"""
-    url = f"{BASE_URL}player_api.php"
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured")
+        return None
+        
+    # Ensure server URL has trailing slash
+    server_url = user['server'].rstrip('/') + '/'
+    url = f"{server_url}player_api.php"
     params = {
-        "username": USERNAME,
-        "password": PASSWORD,
+        "username": user['username'],
+        "password": user['password'],
         "action": "get_series_info",
         "series_id": series_id
     }
@@ -123,10 +318,17 @@ def get_series_info(series_id):
 
 def get_movie_categories():
     """Fetch all movie categories"""
-    url = f"{BASE_URL}player_api.php"
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured")
+        return []
+        
+    # Ensure server URL has trailing slash
+    server_url = user['server'].rstrip('/') + '/'
+    url = f"{server_url}player_api.php"
     params = {
-        "username": USERNAME,
-        "password": PASSWORD,
+        "username": user['username'],
+        "password": user['password'],
         "action": "get_vod_categories"
     }
     
@@ -149,10 +351,17 @@ def get_movie_categories():
 
 def get_movies_by_category(category_id):
     """Fetch all movies in a category"""
-    url = f"{BASE_URL}player_api.php"
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured")
+        return []
+        
+    # Ensure server URL has trailing slash
+    server_url = user['server'].rstrip('/') + '/'
+    url = f"{server_url}player_api.php"
     params = {
-        "username": USERNAME,
-        "password": PASSWORD,
+        "username": user['username'],
+        "password": user['password'],
         "action": "get_vod_streams",
         "category_id": category_id
     }
@@ -167,10 +376,17 @@ def get_movies_by_category(category_id):
 
 def get_movie_info(vod_id):
     """Fetch movie information"""
-    url = f"{BASE_URL}player_api.php"  # Remove leading slash to avoid double slash
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured")
+        return None
+        
+    # Ensure server URL has trailing slash
+    server_url = user['server'].rstrip('/') + '/'
+    url = f"{server_url}player_api.php"
     params = {
-        "username": USERNAME,
-        "password": PASSWORD,
+        "username": user['username'],
+        "password": user['password'],
         "action": "get_vod_info",
         "vod_id": vod_id
     }
@@ -200,9 +416,14 @@ def download_movie_file(movie_info, output_path, stream_id=None):
     container_extension = movie_info.get('container_extension', 'mp4')
     title = movie_info.get('name', 'Unknown Movie')
     
-    # Fix URL construction to avoid double slashes
-    base_url = BASE_URL.rstrip('/')
-    url = f"{base_url}/movie/{USERNAME}/{PASSWORD}/{stream_id}.{container_extension}"
+    # Fix URL construction to avoid double slashes using current user
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured for movie download")
+        return False
+        
+    base_url = user['server'].rstrip('/')
+    url = f"{base_url}/movie/{user['username']}/{user['password']}/{stream_id}.{container_extension}"
     
     try:
         logger.debug(f"Attempting to download movie from: {url}")
@@ -367,9 +588,14 @@ def format_time(seconds):
 
 def download_episode_file(episode, output_path, episode_num=1, total_episodes=1):
     """Download a single episode file with enhanced progress tracking"""
-    # Fix URL construction to avoid double slashes
-    base_url = BASE_URL.rstrip('/')
-    url = f"{base_url}/series/{USERNAME}/{PASSWORD}/{episode['id']}.{episode['container_extension']}"
+    # Fix URL construction to avoid double slashes using current user
+    user = get_current_user()
+    if not user:
+        logger.error("No current user configured for episode download")
+        return False
+        
+    base_url = user['server'].rstrip('/')
+    url = f"{base_url}/series/{user['username']}/{user['password']}/{episode['id']}.{episode['container_extension']}"
     
     try:
         logger.debug(f"Attempting to download from: {url}")
@@ -487,9 +713,257 @@ def download_episode_file(episode, output_path, episode_num=1, total_episodes=1)
         sse_queue.put(error_progress)
         return False
 
+# Authentication routes
 @app.route('/')
 def main_redirect():
+    # Check if any users are configured
+    if not config.USERS or not any(config.USERS.values()):
+        return redirect(url_for('setup'))
+    
+    # Check if current user is set and valid
+    if not config.CURRENT_USER or config.CURRENT_USER not in config.USERS:
+        return redirect(url_for('setup'))
+    
     return redirect(url_for('main'))
+
+@app.route('/setup')
+def setup():
+    """Setup page for configuring user credentials."""
+    return render_template('setup.html')
+
+@app.route('/setup', methods=['POST'])
+def setup_post():
+    """Handle setup form submission."""
+    server = request.form.get('server', '').strip()
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    
+    if not all([server, username, password]):
+        return jsonify({'success': False, 'error': 'Please fill in all required fields.'})
+    
+    # Normalize server URL for comparison
+    normalized_server = server.rstrip('/')
+    
+    # Check for duplicate users (same server + username combination)
+    for user_data in config.USERS.values():
+        existing_server = user_data.get('server', '').rstrip('/')
+        if (existing_server == normalized_server and 
+            user_data.get('username') == username):
+            return jsonify({'success': False, 'error': 'User with this server and username already exists.'})
+    
+    # Test connection
+    result = test_connection(server, username, password)
+    
+    if result['success']:
+        # Generate user ID
+        import uuid
+        user_id = f"user_{str(uuid.uuid4())[:8]}"
+        
+        # Save user configuration
+        user_info = result['data'].get('user_info', {})
+        server_info = result['data'].get('server_info', {})
+        
+        if save_user_to_config(user_id, server, username, password, user_info, server_info):
+            return jsonify({'success': True, 'message': 'Configuration saved successfully!'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save configuration.'})
+    else:
+        return jsonify(result)
+
+@app.route('/test_connection', methods=['POST'])
+def test_connection_route():
+    """Test connection endpoint for AJAX calls."""
+    data = request.get_json()
+    server = data.get('server', '').strip()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not all([server, username, password]):
+        return jsonify({'success': False, 'error': 'Please fill in all required fields.'})
+    
+    result = test_connection(server, username, password)
+    return jsonify(result)
+
+@app.route('/user_info')
+def user_info():
+    """Get current user information."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'No user logged in'})
+    
+    return jsonify({
+        'success': True,
+        'user': {
+            'username': user.get('username'),
+            'server': user.get('server'),
+            'user_info': user.get('user_info', {}),
+            'server_info': user.get('server_info', {})
+        }
+    })
+
+@app.route('/switch_user', methods=['POST'])
+def switch_user_route():
+    """Switch to different user."""
+    data = request.get_json()
+    user_id = data.get('user_id')
+    
+    if not user_id or user_id not in config.USERS:
+        return jsonify({'success': False, 'error': 'Invalid user ID'})
+    
+    if switch_user(user_id):
+        return jsonify({'success': True, 'message': 'User switched successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to switch user'})
+
+@app.route('/add_user', methods=['POST'])
+def add_user():
+    """Add a new user."""
+    data = request.get_json()
+    server = data.get('server', '').strip()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not all([server, username, password]):
+        return jsonify({'success': False, 'error': 'Please fill in all required fields.'})
+    
+    # Normalize server URL for comparison
+    normalized_server = server.rstrip('/')
+    
+    # Check for duplicate users (same server + username combination)
+    for user_data in config.USERS.values():
+        existing_server = user_data.get('server', '').rstrip('/')
+        if (existing_server == normalized_server and 
+            user_data.get('username') == username):
+            return jsonify({'success': False, 'error': 'User with this server and username already exists.'})
+    
+    # Test connection
+    result = test_connection(server, username, password)
+    
+    if result['success']:
+        # Generate user ID
+        import uuid
+        user_id = f"user_{str(uuid.uuid4())[:8]}"
+        
+        # Save user configuration
+        user_info = result['data'].get('user_info', {})
+        server_info = result['data'].get('server_info', {})
+        
+        if save_user_to_config(user_id, server, username, password, user_info, server_info):
+            return jsonify({'success': True, 'message': 'User added successfully!', 'user_id': user_id})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save user configuration.'})
+    else:
+        return jsonify(result)
+
+@app.route('/logout')
+def logout():
+    """Logout current user and remove from config."""
+    try:
+        # Remove current user from USERS dictionary
+        if config.CURRENT_USER and config.CURRENT_USER in config.USERS:
+            del config.USERS[config.CURRENT_USER]
+        
+        # Clear current user in memory
+        config.CURRENT_USER = None
+        config.BASE_URL = ""
+        config.USERNAME = ""
+        config.PASSWORD = ""
+        
+        # Update the config file - write remaining users (if any)
+        users_str = "USERS = {\n"
+        for uid, user_data in config.USERS.items():
+            users_str += f'    "{uid}": {{\n'
+            users_str += f'        "id": "{user_data["id"]}",\n'
+            users_str += f'        "server": "{user_data["server"]}",\n'
+            users_str += f'        "username": "{user_data["username"]}",\n'
+            users_str += f'        "password": "{user_data["password"]}",\n'
+            users_str += f'        "user_info": {user_data["user_info"]},\n'
+            users_str += f'        "server_info": {user_data["server_info"]}\n'
+            users_str += '    },\n'
+        users_str += "}\n\n"
+        
+        current_user_str = 'CURRENT_USER = None\n\n'
+        
+        helper_functions = '''# Legacy support (points to current user's config)
+def get_current_config():
+    if CURRENT_USER and CURRENT_USER in USERS:
+        user = USERS[CURRENT_USER]
+        return {
+            'BASE_URL': user['server'],
+            'USERNAME': user['username'], 
+            'PASSWORD': user['password']
+        }
+    return {'BASE_URL': '', 'USERNAME': '', 'PASSWORD': ''}
+
+# For backward compatibility - these will be updated dynamically
+BASE_URL = ""
+USERNAME = ""
+PASSWORD = ""'''
+        
+        new_content = "# Multi-user configuration\n" + users_str + current_user_str + helper_functions
+        
+        with open('config.py', 'w') as f:
+            f.write(new_content)
+            
+    except Exception as e:
+        logger.error(f"Error during logout: {str(e)}")
+    
+    return redirect(url_for('setup'))
+
+@app.route('/clear_all_users')
+def clear_all_users():
+    """Clear all users and reset config (for debugging/testing)."""
+    try:
+        # Clear all users
+        config.USERS = {}
+        config.CURRENT_USER = None
+        config.BASE_URL = ""
+        config.USERNAME = ""
+        config.PASSWORD = ""
+        
+        # Write empty config
+        new_content = '''# Multi-user configuration
+USERS = {}
+
+CURRENT_USER = None
+
+# Legacy support (points to current user's config)
+def get_current_config():
+    if CURRENT_USER and CURRENT_USER in USERS:
+        user = USERS[CURRENT_USER]
+        return {
+            'BASE_URL': user['server'],
+            'USERNAME': user['username'], 
+            'PASSWORD': user['password']
+        }
+    return {'BASE_URL': '', 'USERNAME': '', 'PASSWORD': ''}
+
+# For backward compatibility - these will be updated dynamically
+BASE_URL = ""
+USERNAME = ""
+PASSWORD = ""'''
+        
+        with open('config.py', 'w') as f:
+            f.write(new_content)
+            
+        return jsonify({'success': True, 'message': 'All users cleared successfully'})
+            
+    except Exception as e:
+        logger.error(f"Error clearing all users: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to clear users'})
+
+@app.route('/get_users')
+def get_users():
+    """Get list of all configured users."""
+    users = []
+    for user_id, user_data in config.USERS.items():
+        users.append({
+            'id': user_id,
+            'username': user_data.get('username'),
+            'server': user_data.get('server'),
+            'is_current': user_id == config.CURRENT_USER
+        })
+    return jsonify({'users': users})
 
 @app.route('/series')
 @app.route('/series/page/<int:page>')
@@ -906,9 +1380,14 @@ def watch_movie(vod_id):
     stream_id = movie_info.get('stream_id', vod_id)
     container_extension = movie_info.get('container_extension', 'mp4')
     
-    # Construct stream URL
-    base_url = BASE_URL.rstrip('/')
-    stream_url = f"{base_url}/movie/{USERNAME}/{PASSWORD}/{stream_id}.{container_extension}"
+    # Construct stream URL using current user
+    user = get_current_user()
+    if not user:
+        return render_template('error.html', 
+                             message="No user configured"), 503
+    
+    base_url = user['server'].rstrip('/')
+    stream_url = f"{base_url}/movie/{user['username']}/{user['password']}/{stream_id}.{container_extension}"
     
     return render_template('watch_movie.html', 
                          movie=movie_data, 
@@ -950,10 +1429,15 @@ def watch_series(series_id, episode_id):
         return render_template('error.html', 
                              message="Episode not found"), 404
     
-    # Construct stream URL
-    base_url = BASE_URL.rstrip('/')
+    # Construct stream URL using current user
+    user = get_current_user()
+    if not user:
+        return render_template('error.html', 
+                             message="No user configured"), 503
+    
+    base_url = user['server'].rstrip('/')
     container_extension = episode_info.get('container_extension', 'mp4')
-    stream_url = f"{base_url}/series/{USERNAME}/{PASSWORD}/{episode_id}.{container_extension}"
+    stream_url = f"{base_url}/series/{user['username']}/{user['password']}/{episode_id}.{container_extension}"
     
     return render_template('watch_series.html', 
                          series=series_data,
@@ -1006,6 +1490,10 @@ def stream_proxy():
 # Main selection page
 @app.route('/main')
 def main():
+    # Check if user is authenticated
+    if not get_current_user():
+        return redirect(url_for('setup'))
+    
     # Get cached data statistics
     series_stats = {'categories': 0, 'total_items': 0, 'last_cached': None}
     movies_stats = {'categories': 0, 'total_items': 0, 'last_cached': None}
